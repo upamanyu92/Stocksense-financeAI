@@ -1,0 +1,74 @@
+[
+  {
+    "symbol": "AAPL",
+    "name": "Apple Inc.",
+    "currentPrice": 189.50,
+    "previousClose": 187.25,
+    "changePercent": 1.20,
+    "marketCap": 2950000000000,
+    "sector": "Technology"
+  },
+  {
+    "symbol": "GOOG",
+    "name": "Alphabet Inc.",
+    "currentPrice": 175.80,
+    "previousClose": 177.40,
+    "changePercent": -0.90,
+    "marketCap": 2200000000000,
+    "sector": "Technology"
+  },
+  {
+    "symbol": "MSFT",
+    "name": "Microsoft Corporation",
+    "currentPrice": 415.30,
+    "previousClose": 412.00,
+    "changePercent": 0.80,
+    "marketCap": 3080000000000,
+    "sector": "Technology"
+  },
+  {
+    "symbol": "AMZN",
+    "name": "Amazon.com Inc.",
+    "currentPrice": 205.60,
+    "previousClose": 202.10,
+    "changePercent": 1.73,
+    "marketCap": 2150000000000,
+    "sector": "Consumer Discretionary"
+  },
+  {
+    "symbol": "NVDA",
+    "name": "NVIDIA Corporation",
+    "currentPrice": 875.40,
+    "previousClose": 860.20,
+    "changePercent": 1.77,
+    "marketCap": 2160000000000,
+    "sector": "Technology"
+  },
+  {
+    "symbol": "TSLA",
+    "name": "Tesla Inc.",
+    "currentPrice": 172.30,
+    "previousClose": 178.50,
+    "changePercent": -3.47,
+    "marketCap": 548000000000,
+    "sector": "Consumer Discretionary"
+  },
+  {
+    "symbol": "META",
+    "name": "Meta Platforms Inc.",
+    "currentPrice": 512.90,
+    "previousClose": 508.40,
+    "changePercent": 0.88,
+    "marketCap": 1300000000000,
+    "sector": "Technology"
+  },
+  {
+    "symbol": "JPM",
+    "name": "JPMorgan Chase & Co.",
+    "currentPrice": 198.70,
+    "previousClose": 196.30,
+    "changePercent": 1.22,
+    "marketCap": 570000000000,
+    "sector": "Financials"
+  }
+]
