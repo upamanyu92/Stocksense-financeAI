@@ -1,0 +1,51 @@
+package com.stocksense.app.viewmodel
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.stocksense.app.data.model.HistoryPoint
+import com.stocksense.app.data.model.PredictionResult
+import com.stocksense.app.data.repository.StockRepository
+import com.stocksense.app.engine.ModelManager
+import com.stocksense.app.workers.PredictionWorker
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+
+data class PredictionUiState(
+    val symbol: String = "",
+    val history: List<HistoryPoint> = emptyList(),
+    val prediction: PredictionResult? = null,
+    val isLoading: Boolean = false,
+    val error: String? = null
+)
+
+class PredictionViewModel(
+    private val stockRepository: StockRepository,
+    private val modelManager: ModelManager
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(PredictionUiState())
+    val uiState: StateFlow<PredictionUiState> = _uiState.asStateFlow()
+
+    fun loadStock(symbol: String) {
+        _uiState.update { it.copy(symbol = symbol, isLoading = true) }
+        viewModelScope.launch {
+            val history = stockRepository.getRecentHistory(symbol, 60)
+            _uiState.update { it.copy(history = history, isLoading = false) }
+        }
+    }
+
+    fun runPrediction(symbol: String) {
+        _uiState.update { it.copy(isLoading = true, error = null) }
+        viewModelScope.launch {
+            try {
+                val history = stockRepository.getRecentHistory(symbol, 60)
+                modelManager.ensureLoaded()
+                val result = modelManager.predictionEngine.predict(symbol, history)
+                modelManager.markUsed()
+                _uiState.update { it.copy(prediction = result, history = history, isLoading = false) }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message, isLoading = false) }
+            }
+        }
+    }
+}

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StockSense</string>
+    <string name="dashboard">Dashboard</string>
+    <string name="predictions">Predictions</string>
+    <string name="insights">Insights</string>
+    <string name="alerts">Alerts</string>
+    <string name="loading">Loading…</string>
+    <string name="no_data">No data available</string>
+    <string name="predict">Predict</string>
+    <string name="generate_insight">Generate Insight</string>
+    <string name="notification_channel_alerts">Stock Alerts</string>
+    <string name="notification_channel_alerts_desc">Notifications for stock price alerts and predictions</string>
+    <string name="channel_sync">Background Sync</string>
+    <string name="channel_sync_desc">Background data sync notifications</string>
+</resources>
