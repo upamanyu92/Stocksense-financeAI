@@ -1,0 +1,218 @@
+package com.stocksense.app.engine
+
+import android.app.ActivityManager
+import android.content.Context
+import android.os.Build
+import android.util.Log
+import com.stocksense.app.data.model.PredictionResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.util.concurrent.ConcurrentHashMap
+
+private const val TAG = "LLMInsightEngine"
+
+/**
+ * Quality modes that adapt model size to device capabilities.
+ */
+enum class QualityMode {
+    /** Smaller quantized model – fastest, lowest accuracy. */
+    LITE,
+    /** Default balanced model. */
+    BALANCED,
+    /** Largest model – best quality, requires ≥8 GB RAM. */
+    PRO
+}
+
+/**
+ * LLMInsightEngine – generates natural-language stock insights using a local LLM.
+ *
+ * For a production build, native llama.cpp inference is invoked via [LlamaCpp] JNI.
+ * When the native library / model file is absent the engine falls back to a
+ * deterministic template-based response so the app remains functional.
+ *
+ * ### Adaptive Quality Mode
+ * The engine selects the model automatically based on available RAM, but the
+ * user can also force a specific [QualityMode].
+ *
+ * RAM ≥ 8 GB → PRO  (Gemma-2B Q5)
+ * RAM 6–8 GB  → BALANCED (Phi-2 Q4)
+ * RAM < 6 GB  → LITE  (Phi-mini Q4)
+ */
+class LLMInsightEngine(private val context: Context) {
+
+    private var modelHandle: Long = 0L          // llama.cpp model pointer (0 = unloaded)
+    private var contextHandle: Long = 0L        // llama.cpp context pointer
+    private var currentMode: QualityMode? = null
+    private var isNativeAvailable = false
+
+    /** Simple LRU-like response cache (symbol → insight). */
+    private val responseCache = ConcurrentHashMap<String, CachedInsight>()
+    private val cacheTtlMs = 5 * 60 * 1000L    // 5 minutes
+
+    init {
+        isNativeAvailable = tryLoadNativeLib()
+    }
+
+    // ---------- Public API ----------
+
+    /**
+     * Lazily load the LLM for the given [mode].
+     * Call this on a background thread (e.g., from a coroutine scope).
+     */
+    suspend fun loadModel(mode: QualityMode = autoSelectMode()) = withContext(Dispatchers.IO) {
+        if (currentMode == mode && modelHandle != 0L) return@withContext
+        unloadModel()
+        currentMode = mode
+        if (!isNativeAvailable) {
+            Log.i(TAG, "Native library not available – using template fallback")
+            return@withContext
+        }
+        val modelFile = modelFileFor(mode)
+        if (!modelFile.exists()) {
+            Log.w(TAG, "Model file not found: ${modelFile.absolutePath} – using fallback")
+            return@withContext
+        }
+        try {
+            modelHandle = LlamaCpp.loadModel(modelFile.absolutePath, nGpuLayers(mode))
+            contextHandle = LlamaCpp.createContext(modelHandle, contextSizeFor(mode))
+            Log.i(TAG, "LLM loaded: ${modelFile.name} (mode=$mode)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load LLM: ${e.message}")
+            modelHandle = 0L
+        }
+    }
+
+    /**
+     * Unload the model and free native memory.
+     */
+    fun unloadModel() {
+        if (modelHandle != 0L && isNativeAvailable) {
+            try {
+                LlamaCpp.freeContext(contextHandle)
+                LlamaCpp.freeModel(modelHandle)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error unloading model: ${e.message}")
+            }
+        }
+        modelHandle = 0L
+        contextHandle = 0L
+        currentMode = null
+    }
+
+    /**
+     * Generate a natural-language insight for [prediction].
+     * Returns cached result if still fresh.
+     */
+    suspend fun generateInsight(
+        prediction: PredictionResult,
+        recentPrices: List<Double>
+    ): String = withContext(Dispatchers.IO) {
+        val cacheKey = "${prediction.symbol}_${prediction.direction}"
+        responseCache[cacheKey]?.let { cached ->
+            if (System.currentTimeMillis() - cached.timestamp < cacheTtlMs) {
+                return@withContext cached.text
+            }
+        }
+
+        val insight = if (modelHandle != 0L && isNativeAvailable) {
+            val prompt = buildPrompt(prediction, recentPrices)
+            val truncated = truncatePromptIfNeeded(prompt)
+            try {
+                LlamaCpp.runInference(contextHandle, truncated, maxTokens = 200)
+            } catch (e: Exception) {
+                Log.e(TAG, "Inference error: ${e.message}")
+                templateInsight(prediction)
+            }
+        } else {
+            templateInsight(prediction)
+        }
+
+        responseCache[cacheKey] = CachedInsight(insight, System.currentTimeMillis())
+        insight
+    }
+
+    fun isModelLoaded(): Boolean = modelHandle != 0L || !isNativeAvailable
+
+    fun currentQualityMode(): QualityMode = currentMode ?: autoSelectMode()
+
+    // ---------- Private helpers ----------
+
+    private fun autoSelectMode(): QualityMode {
+        val ramGb = getDeviceRamGb()
+        return when {
+            ramGb >= 8 -> QualityMode.PRO
+            ramGb >= 6 -> QualityMode.BALANCED
+            else -> QualityMode.LITE
+        }
+    }
+
+    private fun getDeviceRamGb(): Int {
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val info = ActivityManager.MemoryInfo()
+        am.getMemoryInfo(info)
+        return (info.totalMem / (1024L * 1024L * 1024L)).toInt()
+    }
+
+    private fun modelFileFor(mode: QualityMode): File {
+        val name = when (mode) {
+            QualityMode.LITE -> "phi-mini-q4.gguf"
+            QualityMode.BALANCED -> "phi-2-q4.gguf"
+            QualityMode.PRO -> "gemma-2b-q5.gguf"
+        }
+        return File(context.filesDir, "models/$name")
+    }
+
+    private fun contextSizeFor(mode: QualityMode) = when (mode) {
+        QualityMode.LITE -> 512
+        QualityMode.BALANCED -> 1024
+        QualityMode.PRO -> 2048
+    }
+
+    private fun nGpuLayers(mode: QualityMode) = when (mode) {
+        QualityMode.LITE -> 0
+        QualityMode.BALANCED -> 20
+        QualityMode.PRO -> 35
+    }
+
+    private fun buildPrompt(prediction: PredictionResult, recentPrices: List<Double>): String {
+        val priceStr = recentPrices.takeLast(5).joinToString(", ") { "%.2f".format(it) }
+        return """
+You are a financial analyst. Provide a concise 2-sentence insight.
+
+Stock: ${prediction.symbol}
+Recent prices: $priceStr
+Predicted direction: ${prediction.direction}
+Predicted price: ${"%.2f".format(prediction.predictedPrice)}
+Confidence: ${"%.0f".format(prediction.confidence * 100)}%
+
+Insight:""".trimIndent()
+    }
+
+    /** Keep prompt within context window to avoid OOM on low-end devices. */
+    private fun truncatePromptIfNeeded(prompt: String, maxChars: Int = 800): String =
+        if (prompt.length > maxChars) prompt.takeLast(maxChars) else prompt
+
+    /** Deterministic template used when no LLM is loaded. */
+    private fun templateInsight(prediction: PredictionResult): String {
+        val directionText = when (prediction.direction) {
+            "UP" -> "bullish upward movement"
+            "DOWN" -> "bearish downward pressure"
+            else -> "sideways consolidation"
+        }
+        val confidence = "%.0f".format(prediction.confidence * 100)
+        return "${prediction.symbol} shows signs of $directionText with $confidence% model confidence. " +
+               "The predicted price target is ${"%.2f".format(prediction.predictedPrice)}. " +
+               "Consider monitoring volume and market conditions before acting."
+    }
+
+    private fun tryLoadNativeLib(): Boolean = try {
+        System.loadLibrary("llama")
+        true
+    } catch (e: UnsatisfiedLinkError) {
+        Log.i(TAG, "llama native library not linked – template mode active")
+        false
+    }
+
+    private data class CachedInsight(val text: String, val timestamp: Long)
+}
