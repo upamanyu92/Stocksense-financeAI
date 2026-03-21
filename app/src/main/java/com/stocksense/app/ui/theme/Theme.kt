@@ -6,27 +6,29 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Blue200,
-    onPrimary = Grey900,
-    secondary = Teal400,
-    onSecondary = Grey900,
-    background = Grey900,
-    surface = Color(0xFF1E1E1E),
+    primary = ElectricBlue,
+    onPrimary = DeepBlack,
+    secondary = NeonGreen,
+    onSecondary = DeepBlack,
+    tertiary = LuxeGold,
+    background = DeepBlack,
+    surface = Graphite,
     onBackground = Color.White,
     onSurface = Color.White,
-    error = Red400
+    error = SoftRed
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Blue600,
+    primary = ElectricBlueDeep,
     onPrimary = Color.White,
-    secondary = Teal400,
-    onSecondary = Grey900,
+    secondary = NeonGreenDeep,
+    onSecondary = DeepBlack,
+    tertiary = LuxeGold,
     background = Grey100,
     surface = Color.White,
     onBackground = Grey900,
     onSurface = Grey900,
-    error = Red700
+    error = SoftRedDeep
 )
 
 @Composable
