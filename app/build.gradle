@@ -5,6 +5,15 @@ plugins {
     id 'kotlin-kapt'
 }
 
+def keystorePropertiesFile = rootProject.file("keystore.properties")
+def keystoreProperties = new Properties()
+def hasReleaseKeystore = keystorePropertiesFile.exists()
+if (hasReleaseKeystore) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+    hasReleaseKeystore = ['storeFile', 'storePassword', 'keyAlias', 'keyPassword']
+            .every { keystoreProperties[it] }
+}
+
 android {
     namespace 'com.stocksense.app'
     compileSdk 34
@@ -26,10 +35,22 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            release {
+                storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig hasReleaseKeystore ? signingConfigs.release : signingConfigs.debug
         }
         debug {
             minifyEnabled false
