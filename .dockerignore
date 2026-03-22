@@ -1,0 +1,15 @@
+.git
+.github
+.gradle
+**/build
+!app/build/outputs
+!app/build/outputs/apk
+!app/build/outputs/apk/release
+!app/build/outputs/apk/release/app-release.apk
+**/.cxx
+**/.externalNativeBuild
+app/release
+*.iml
+local.properties
+*.apk
+*.aab
