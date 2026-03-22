@@ -10,7 +10,6 @@ on:
 
 env:
   JAVA_VERSION: "17"
-  ANDROID_SDK_ROOT: /usr/local/android-sdk
   CI: true
 
 permissions:
