@@ -126,8 +126,8 @@ class PredictionEngine(private val context: Context) {
         val confidence = probs[directionIdx]
         val lastClose = closes.last()
         val predictedPrice = when (direction) {
-            "UP" -> lastClose * (1 + confidence * 0.02f)
-            "DOWN" -> lastClose * (1 - confidence * 0.02f)
+            "UP" -> (lastClose * (1 + confidence * 0.02f)).toDouble()
+            "DOWN" -> (lastClose * (1 - confidence * 0.02f)).toDouble()
             else -> lastClose.toDouble()
         }
 
