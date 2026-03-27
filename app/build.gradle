@@ -50,7 +50,7 @@ android {
     }
 
     // Assign unique version codes per ABI split.
-    applicationVariants.configureEach { variant ->
+    applicationVariants.all { variant ->
         variant.outputs.each { output ->
             def abiFilter = output.getFilter(com.android.build.OutputFile.ABI)
             if (abiFilter != null) {
@@ -96,7 +96,7 @@ android {
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion '1.5.10'
+        kotlinCompilerExtensionVersion '1.5.8'
     }
 
     lint {
