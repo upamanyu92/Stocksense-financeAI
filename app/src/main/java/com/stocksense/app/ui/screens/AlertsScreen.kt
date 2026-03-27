@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import com.stocksense.app.data.database.entities.Alert
 import com.stocksense.app.data.database.entities.AlertStatus
 import com.stocksense.app.data.database.entities.AlertType
+import com.stocksense.app.ui.components.EmptyState
 import com.stocksense.app.viewmodel.AlertsViewModel
 import java.text.SimpleDateFormat
 import java.util.*

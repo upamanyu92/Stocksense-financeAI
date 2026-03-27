@@ -99,6 +99,11 @@ android {
         kotlinCompilerExtensionVersion '1.5.10'
     }
 
+    lint {
+        abortOnError false
+        checkReleaseBuilds true
+    }
+
     packaging {
         resources {
             excludes += '/META-INF/{AL2.0,LGPL2.1}'
@@ -115,6 +120,13 @@ android {
                 version "3.22.1"
             }
         }
+    }
+}
+
+// Room schema export directory for migration verification.
+kapt {
+    arguments {
+        arg("room.schemaLocation", "$projectDir/schemas")
     }
 }
 
