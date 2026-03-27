@@ -82,7 +82,7 @@ class ModelDownloadWorker(
          */
         fun schedule(context: Context) {
             val constraints = Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .setRequiredNetworkType(NetworkType.UNMETERED)
                 .setRequiresStorageNotLow(true)
                 .build()
 
