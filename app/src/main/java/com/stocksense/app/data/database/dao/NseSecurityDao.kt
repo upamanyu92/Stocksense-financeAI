@@ -11,6 +11,9 @@ interface NseSecurityDao {
     @Query("SELECT * FROM nse_securities WHERE code = :code LIMIT 1")
     suspend fun getByCode(code: String): NseSecurity?
 
+    @Query("SELECT * FROM nse_securities WHERE code IN (:codes)")
+    suspend fun getByCodes(codes: List<String>): List<NseSecurity>
+
     @Query("SELECT * FROM nse_securities")
     suspend fun getAll(): List<NseSecurity>
 

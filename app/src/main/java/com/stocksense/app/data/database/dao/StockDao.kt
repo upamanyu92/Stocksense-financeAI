@@ -13,6 +13,9 @@ interface StockDao {
     @Query("SELECT * FROM stocks WHERE symbol = :symbol LIMIT 1")
     suspend fun getStock(symbol: String): Stock?
 
+    @Query("SELECT * FROM stocks WHERE symbol IN (:symbols)")
+    suspend fun getStocks(symbols: List<String>): List<Stock>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateStock(stock: Stock)
 

@@ -146,15 +146,19 @@ class LLMInsightEngine(private val context: Context) {
         }
         status = LlmStatus.LOADING
         try {
-            modelHandle = LlamaCpp.loadModel(modelFile.absolutePath, nGpuLayers(mode))
-            contextHandle = LlamaCpp.createContext(modelHandle, contextSizeFor(mode))
-            if (modelHandle == 0L || contextHandle == 0L) {
-                modelHandle = 0L
-                contextHandle = 0L
+            val loadedModelHandle = LlamaCpp.loadModel(modelFile.absolutePath, nGpuLayers(mode))
+            val loadedContextHandle = if (loadedModelHandle != 0L) {
+                LlamaCpp.createContext(loadedModelHandle, contextSizeFor(mode))
+            } else {
+                0L
+            }
+            if (loadedModelHandle == 0L || loadedContextHandle == 0L) {
                 status = LlmStatus.LOAD_FAILED
                 Log.e(TAG, "Model load returned an invalid native handle")
                 return@withContext
             }
+            modelHandle = loadedModelHandle
+            contextHandle = loadedContextHandle
             status = LlmStatus.READY
             Log.i(TAG, "BitNet LLM loaded: ${modelFile.name} (mode=$mode)")
         } catch (e: Exception) {

@@ -66,17 +66,18 @@ class WatchlistViewModel(
 
     private fun refreshStockData(items: List<WatchlistItem>) {
         viewModelScope.launch {
-            val stockMap = mutableMapOf<String, StockData>()
-            val displayNameMap = mutableMapOf<String, String>()
-            for (item in items) {
-                stockRepository.getStock(item.symbol)?.let { stock ->
-                    stockMap[item.symbol] = stock
-                    displayNameMap[item.symbol] = stock.name
-                } ?: run {
-                    nseSecurityDao.getByCode(item.symbol)?.name?.let { displayName ->
-                        displayNameMap[item.symbol] = displayName
-                    }
-                }
+            val symbols = items.map { it.symbol }
+            val stocks = stockRepository.getStocks(symbols)
+            val stockMap = stocks.associateBy { it.symbol }.toMutableMap()
+            val displayNameMap = stocks.associate { it.symbol to it.name }.toMutableMap()
+            val unresolvedSymbols = symbols.filterNot(stockMap::containsKey)
+            val nseMatches = if (unresolvedSymbols.isEmpty()) {
+                emptyList()
+            } else {
+                nseSecurityDao.getByCodes(unresolvedSymbols)
+            }
+            nseMatches.forEach { security ->
+                displayNameMap.putIfAbsent(security.code, security.name)
             }
             _uiState.update { it.copy(stocks = stockMap, displayNames = displayNameMap) }
         }

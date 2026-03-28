@@ -152,7 +152,7 @@ private fun WatchlistRow(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = displayName ?: stockData?.name ?: item.symbol,
+                    text = displayName ?: item.symbol,
                     style = MaterialTheme.typography.titleMedium,
                     color = ElectricBlue
                 )

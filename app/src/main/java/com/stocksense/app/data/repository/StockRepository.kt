@@ -40,6 +40,9 @@ class StockRepository(
     suspend fun getStock(symbol: String): StockData? =
         stockDao.getStock(symbol)?.toDomain()
 
+    suspend fun getStocks(symbols: List<String>): List<StockData> =
+        stockDao.getStocks(symbols).map { it.toDomain() }
+
     /** Fetch recent history (for ML feature extraction). */
     suspend fun getRecentHistory(symbol: String, limit: Int = 60): List<HistoryPoint> =
         historyDao.getRecentHistory(symbol, limit).map {

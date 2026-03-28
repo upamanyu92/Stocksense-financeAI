@@ -65,6 +65,7 @@ class SearchViewModel(
     private suspend fun performSearch(query: String) {
         _uiState.update { it.copy(isSearching = true) }
 
+        val localStocks = stockRepository.observeAllStocks().first()
         val allResults = mutableListOf<SearchResult>()
 
         // Search NSE securities
@@ -79,6 +80,7 @@ class SearchViewModel(
                     else -> "Match"
                 }
                 val resolvedSymbol = resolveResultSymbol(
+                    localStocks = localStocks,
                     fallbackSymbol = nse.code,
                     nseSymbol = nse.symbol,
                     displayName = nse.name
@@ -96,7 +98,10 @@ class SearchViewModel(
 
         // Also search stocks table
         try {
-            stockRepository.searchStocks(query).first().let { stocks ->
+            localStocks.filter { stock ->
+                stock.symbol.contains(query, ignoreCase = true) ||
+                    stock.name.contains(query, ignoreCase = true)
+            }.let { stocks ->
                 _filteredStocks.value = stocks
                 stocks.forEach { stock ->
                     // Avoid duplicate if already in NSE results
@@ -138,6 +143,7 @@ class SearchViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isSearching = true, query = query) }
 
+            val localStocks = stockRepository.observeAllStocks().first()
             val allResults = mutableListOf<SearchResult>()
             try {
                 val nseResults = nseSecurityDao.search(query, limit = 500)
@@ -145,6 +151,7 @@ class SearchViewModel(
                     SearchResult(
                         displayName = nse.name,
                         symbol = resolveResultSymbol(
+                            localStocks = localStocks,
                             fallbackSymbol = nse.code,
                             nseSymbol = nse.symbol,
                             displayName = nse.name
@@ -174,7 +181,8 @@ class SearchViewModel(
         }
     }
 
-    private suspend fun resolveResultSymbol(
+    private fun resolveResultSymbol(
+        localStocks: List<StockData>,
         fallbackSymbol: String,
         nseSymbol: String,
         displayName: String
@@ -183,11 +191,10 @@ class SearchViewModel(
             return nseSymbol
         }
 
-        val localMatch = stockRepository.searchStocks(displayName).first()
-            .firstOrNull { stock ->
-                stock.name.equals(displayName, ignoreCase = true) ||
-                    stock.symbol.equals(fallbackSymbol, ignoreCase = true)
-            }
+        val localMatch = localStocks.firstOrNull { stock ->
+            stock.name.equals(displayName, ignoreCase = true) ||
+                stock.symbol.equals(fallbackSymbol, ignoreCase = true)
+        }
 
         return localMatch?.symbol ?: fallbackSymbol
     }
