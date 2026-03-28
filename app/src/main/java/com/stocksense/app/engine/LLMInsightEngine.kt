@@ -16,28 +16,34 @@ private const val TAG = "LLMInsightEngine"
  * Quality modes that adapt model size to device capabilities.
  */
 enum class QualityMode {
-    /** Smaller quantized model – fastest, lowest accuracy. */
+    /** Smaller 1-bit quantized model – fastest, lowest accuracy. */
     LITE,
-    /** Default balanced model. */
+    /** Default balanced 1-bit model. */
     BALANCED,
-    /** Largest model – best quality, requires ≥8 GB RAM. */
+    /** Largest quantized model – best quality, requires ≥8 GB RAM. */
     PRO
 }
 
 /**
- * LLMInsightEngine – generates natural-language stock insights using a local LLM.
+ * LLMInsightEngine – generates natural-language stock insights using a local
+ * Microsoft BitNet 1-bit LLM running via [LlamaCpp] JNI.
  *
- * For a production build, native llama.cpp inference is invoked via [LlamaCpp] JNI.
- * When the native library / model file is absent the engine falls back to a
+ * Model files are downloaded automatically by [BitNetModelDownloader] /
+ * [com.stocksense.app.workers.ModelDownloadWorker] on first launch and stored
+ * under `<internal-storage>/models/`.
+ *
+ * When the native library or model file is absent the engine falls back to a
  * deterministic template-based response so the app remains functional.
  *
  * ### Adaptive Quality Mode
  * The engine selects the model automatically based on available RAM, but the
  * user can also force a specific [QualityMode].
  *
- * RAM ≥ 8 GB → PRO  (Gemma-2B Q5)
- * RAM 6–8 GB  → BALANCED (Phi-2 Q4)
- * RAM < 6 GB  → LITE  (Phi-mini Q4)
+ * | RAM     | Mode     | Model                              |
+ * |---------|----------|------------------------------------|
+ * | ≥ 8 GB  | PRO      | bitnet-b1.58-2B-4T-Q4_0.gguf      |
+ * | 6–8 GB  | BALANCED | bitnet-b1.58-2B-4T-TQ2_0.gguf     |
+ * | < 6 GB  | LITE     | bitnet-b1.58-2B-4T-TQ1_0.gguf     |
  */
 class LLMInsightEngine(private val context: Context) {
 
@@ -45,6 +51,9 @@ class LLMInsightEngine(private val context: Context) {
     private var contextHandle: Long = 0L        // llama.cpp context pointer
     private var currentMode: QualityMode? = null
     private var isNativeAvailable = false
+
+    /** Helper used to locate downloaded model files. */
+    private val downloader = BitNetModelDownloader(context)
 
     /** Simple LRU-like response cache (symbol → insight). */
     private val responseCache = ConcurrentHashMap<String, CachedInsight>()
@@ -68,7 +77,7 @@ class LLMInsightEngine(private val context: Context) {
             Log.i(TAG, "Native library not available – using template fallback")
             return@withContext
         }
-        val modelFile = modelFileFor(mode)
+        val modelFile = downloader.modelFileFor(mode)
         if (!modelFile.exists()) {
             Log.w(TAG, "Model file not found: ${modelFile.absolutePath} – using fallback")
             return@withContext
@@ -76,7 +85,7 @@ class LLMInsightEngine(private val context: Context) {
         try {
             modelHandle = LlamaCpp.loadModel(modelFile.absolutePath, nGpuLayers(mode))
             contextHandle = LlamaCpp.createContext(modelHandle, contextSizeFor(mode))
-            Log.i(TAG, "LLM loaded: ${modelFile.name} (mode=$mode)")
+            Log.i(TAG, "BitNet LLM loaded: ${modelFile.name} (mode=$mode)")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load LLM: ${e.message}")
             modelHandle = 0L
@@ -136,6 +145,9 @@ class LLMInsightEngine(private val context: Context) {
 
     fun currentQualityMode(): QualityMode = currentMode ?: autoSelectMode()
 
+    /** @return true if the BitNet model file for the auto-selected mode is on disk. */
+    fun isModelDownloaded(): Boolean = downloader.isModelAvailable(autoSelectMode())
+
     // ---------- Private helpers ----------
 
     private fun autoSelectMode(): QualityMode {
@@ -152,15 +164,6 @@ class LLMInsightEngine(private val context: Context) {
         val info = ActivityManager.MemoryInfo()
         am.getMemoryInfo(info)
         return (info.totalMem / (1024L * 1024L * 1024L)).toInt()
-    }
-
-    private fun modelFileFor(mode: QualityMode): File {
-        val name = when (mode) {
-            QualityMode.LITE -> "phi-mini-q4.gguf"
-            QualityMode.BALANCED -> "phi-2-q4.gguf"
-            QualityMode.PRO -> "gemma-2b-q5.gguf"
-        }
-        return File(context.filesDir, "models/$name")
     }
 
     private fun contextSizeFor(mode: QualityMode) = when (mode) {

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Neon-green stylised chart arrow representing StockSense -->
+    <path
+        android:fillColor="#3DF58C"
+        android:pathData="M30,72 L50,42 L62,56 L78,32"
+        android:strokeWidth="4"
+        android:strokeColor="#3DF58C" />
+    <path
+        android:fillColor="#3DF58C"
+        android:pathData="M70,32 L78,32 L78,40" />
+</vector>
