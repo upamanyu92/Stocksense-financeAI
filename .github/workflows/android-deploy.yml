@@ -139,16 +139,14 @@ jobs:
           else:
               branch = sanitize(ref_name)
               version_name = f"{base_name}-{branch}.{run_number}"
-              version_code = 900_000 + (run_number % 100_000)
+              if run_number >= 100_000:
+                  raise SystemExit(
+                      f"Run number {run_number} exceeds the reserved branch-build version-code range."
+                  )
+              version_code = 900_000 + run_number
               docker_tag = sanitize(version_name)
 
           artifact_name = f"release-apks-{sanitize(version_name)}"
-
-          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
-              env_file.write(f"RELEASE_VERSION_NAME={version_name}\n")
-              env_file.write(f"RELEASE_VERSION_CODE={version_code}\n")
-              env_file.write(f"RELEASE_ARTIFACT_NAME={artifact_name}\n")
-              env_file.write(f"DOCKER_VERSION_TAG={docker_tag}\n")
 
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output_file:
               output_file.write(f"release_version_name={version_name}\n")
@@ -158,14 +156,20 @@ jobs:
           PY
 
       - name: Assemble release APKs (split per ABI)
+        env:
+          RELEASE_VERSION_NAME: ${{ steps.version.outputs.release_version_name }}
+          RELEASE_VERSION_CODE: ${{ steps.version.outputs.release_version_code }}
         run: >
           ./gradlew --no-daemon assembleRelease
           -Pstocksense.versionName="${RELEASE_VERSION_NAME}"
           -Pstocksense.versionCode="${RELEASE_VERSION_CODE}"
 
       - name: Rename release APKs with version metadata
+        env:
+          RELEASE_VERSION_NAME: ${{ steps.version.outputs.release_version_name }}
         run: |
           shopt -s nullglob
+          # Gradle currently emits split APKs as app-<target>-release.apk.
           for apk in app/build/outputs/apk/release/*.apk; do
             filename="$(basename "$apk")"
             if [[ "$filename" =~ ^app-(.+)-release\.apk$ ]]; then
@@ -183,7 +187,7 @@ jobs:
       - name: Upload all release APKs
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.RELEASE_ARTIFACT_NAME }}
+          name: ${{ steps.version.outputs.release_artifact_name }}
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
