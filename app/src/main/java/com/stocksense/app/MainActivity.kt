@@ -3,14 +3,21 @@ package com.stocksense.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelProvider
 import com.stocksense.app.ui.navigation.StockSenseNavGraph
+import com.stocksense.app.ui.screens.BootSplashScreen
 import com.stocksense.app.ui.theme.StockSenseTheme
 import com.stocksense.app.viewmodel.*
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
 
@@ -87,23 +94,34 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             StockSenseTheme {
+                var showBootSplash by rememberSaveable { mutableStateOf(true) }
+
+                LaunchedEffect(Unit) {
+                    delay(3000)
+                    showBootSplash = false
+                }
+
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    StockSenseNavGraph(
-                        dashboardViewModel = dashboardViewModel,
-                        predictionViewModel = predictionViewModel,
-                        insightsViewModel = insightsViewModel,
-                        alertsViewModel = alertsViewModel,
-                        profileViewModel = profileViewModel,
-                        watchlistViewModel = watchlistViewModel,
-                        portfolioViewModel = portfolioViewModel,
-                        chatViewModel = chatViewModel,
-                        authViewModel = authViewModel,
-                        searchViewModel = searchViewModel,
-                        llmSettingsViewModel = llmSettingsViewModel
-                    )
+                    if (showBootSplash) {
+                        BootSplashScreen()
+                    } else {
+                        StockSenseNavGraph(
+                            dashboardViewModel = dashboardViewModel,
+                            predictionViewModel = predictionViewModel,
+                            insightsViewModel = insightsViewModel,
+                            alertsViewModel = alertsViewModel,
+                            profileViewModel = profileViewModel,
+                            watchlistViewModel = watchlistViewModel,
+                            portfolioViewModel = portfolioViewModel,
+                            chatViewModel = chatViewModel,
+                            authViewModel = authViewModel,
+                            searchViewModel = searchViewModel,
+                            llmSettingsViewModel = llmSettingsViewModel
+                        )
+                    }
                 }
             }
         }
