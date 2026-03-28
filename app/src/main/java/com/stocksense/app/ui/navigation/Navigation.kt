@@ -15,17 +15,20 @@ import com.stocksense.app.ui.screens.AlertsScreen
 import com.stocksense.app.ui.screens.DashboardScreen
 import com.stocksense.app.ui.screens.InsightsScreen
 import com.stocksense.app.ui.screens.PredictionScreen
+import com.stocksense.app.ui.screens.ProfileScreen
 import com.stocksense.app.viewmodel.AlertsViewModel
 import com.stocksense.app.viewmodel.DashboardViewModel
 import com.stocksense.app.viewmodel.InsightsViewModel
 import com.stocksense.app.viewmodel.PredictionViewModel
+import com.stocksense.app.viewmodel.ProfileViewModel
 
 @Composable
 fun StockSenseNavGraph(
     dashboardViewModel: DashboardViewModel,
     predictionViewModel: PredictionViewModel,
     insightsViewModel: InsightsViewModel,
-    alertsViewModel: AlertsViewModel
+    alertsViewModel: AlertsViewModel,
+    profileViewModel: ProfileViewModel
 ) {
     val navController = rememberNavController()
 
@@ -64,6 +67,9 @@ fun StockSenseNavGraph(
                     viewModel = dashboardViewModel,
                     onStockClick = { symbol ->
                         navController.navigate(Screen.Prediction.createRoute(symbol))
+                    },
+                    onProfileClick = {
+                        navController.navigate(Screen.Profile.route)
                     }
                 )
             }
@@ -89,6 +95,12 @@ fun StockSenseNavGraph(
             }
             composable(Screen.Alerts.route) {
                 AlertsScreen(viewModel = alertsViewModel)
+            }
+            composable(Screen.Profile.route) {
+                ProfileScreen(
+                    viewModel = profileViewModel,
+                    onBack = { navController.popBackStack() }
+                )
             }
         }
     }

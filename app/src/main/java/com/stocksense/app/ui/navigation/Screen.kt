@@ -13,9 +13,11 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
         fun createRoute(symbol: String) = "insights/$symbol"
     }
     object Alerts : Screen("alerts", "Alerts", Icons.Default.NotificationsActive)
+    object Profile : Screen("profile", "Profile", Icons.Default.Person)
 }
 
 val bottomNavItems = listOf(
     Screen.Dashboard,
-    Screen.Alerts
+    Screen.Alerts,
+    Screen.Profile
 )
