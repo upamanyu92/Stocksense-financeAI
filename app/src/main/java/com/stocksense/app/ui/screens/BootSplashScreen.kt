@@ -18,8 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+// ...existing imports...
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,7 +43,8 @@ import androidx.compose.ui.unit.sp
 import com.stocksense.app.R
 import com.stocksense.app.ui.theme.DeepBlack
 import com.stocksense.app.ui.theme.ElectricBlue
-import com.stocksense.app.ui.theme.GlassStroke
+// ...existing imports...
+import androidx.compose.ui.geometry.Offset
 import com.stocksense.app.ui.theme.Graphite
 import com.stocksense.app.ui.theme.MutedGrey
 import com.stocksense.app.ui.theme.NeonGreen
@@ -58,16 +58,7 @@ fun BootSplashScreen() {
         started = true
     }
 
-    val logoAlpha by animateFloatAsState(
-        targetValue = if (started) 1f else 0f,
-        animationSpec = tween(durationMillis = 900),
-        label = "logoAlpha"
-    )
-    val logoScale by animateFloatAsState(
-        targetValue = if (started) 1f else 0.72f,
-        animationSpec = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
-        label = "logoScale"
-    )
+    // Removed logo animation states
     val bannerAlpha by animateFloatAsState(
         targetValue = if (started) 1f else 0f,
         animationSpec = tween(durationMillis = 1100, delayMillis = 250),
@@ -85,24 +76,7 @@ fun BootSplashScreen() {
     )
 
     val infiniteTransition = rememberInfiniteTransition(label = "bootFx")
-    val haloScale by infiniteTransition.animateFloat(
-        initialValue = 0.94f,
-        targetValue = 1.08f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "haloScale"
-    )
-    val haloAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.18f,
-        targetValue = 0.34f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1800),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "haloAlpha"
-    )
+    // Removed unused haloScale and haloAlpha variables
     val sweepShift by infiniteTransition.animateFloat(
         initialValue = -0.8f,
         targetValue = 1.8f,
@@ -111,6 +85,18 @@ fun BootSplashScreen() {
             repeatMode = RepeatMode.Restart
         ),
         label = "sweepShift"
+    )
+
+    // Shimmer effect for banner
+    val shimmerTransition = rememberInfiniteTransition(label = "bannerShimmer")
+    val shimmerX by shimmerTransition.animateFloat(
+        initialValue = -1f,
+        targetValue = 2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmerX"
     )
 
     Box(
@@ -146,67 +132,42 @@ fun BootSplashScreen() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            // Removed logo. Only banner with shimmer effect remains.
+            Spacer(modifier = Modifier.height(48.dp))
+
             Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.size(170.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(158.dp)
-                        .scale(haloScale)
-                        .alpha(haloAlpha)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    ElectricBlue.copy(alpha = 0.55f),
-                                    NeonGreen.copy(alpha = 0.28f),
-                                    Color.Transparent
-                                )
-                            )
-                        )
-                )
-
-                Box(
-                    modifier = Modifier
-                        .size(132.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    GlassStroke.copy(alpha = 0.85f),
-                                    ElectricBlue.copy(alpha = 0.18f),
-                                    NeonGreen.copy(alpha = 0.18f)
-                                )
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_app_logo),
-                        contentDescription = "StockSense logo",
-                        modifier = Modifier
-                            .size(104.dp)
-                            .alpha(logoAlpha)
-                            .scale(logoScale)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(28.dp))
-
-            Image(
-                painter = painterResource(id = R.drawable.stocksense_boot_banner),
-                contentDescription = "StockSense banner",
-                contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(120.dp)
                     .offset(y = bannerOffsetY.dp)
                     .alpha(bannerAlpha)
                     .clip(RoundedCornerShape(24.dp))
-            )
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.stocksense_boot_banner),
+                    contentDescription = "StockSense banner",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.matchParentSize()
+                )
+                // Shimmer overlay
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color.White.copy(alpha = 0.32f),
+                                    Color.Transparent
+                                ),
+                                start = Offset(x = shimmerX * 600f, y = 0f),
+                                end = Offset(x = (shimmerX + 0.5f) * 600f, y = 0f)
+                            )
+                        )
+                )
+            }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
             Box(
                 modifier = Modifier

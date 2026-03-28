@@ -16,7 +16,11 @@ data class ModelOption(
     val name: String,
     val description: String,
     val sizeLabel: String,
-    val mode: QualityMode
+    val mode: QualityMode,
+    val downloadUrl: String,
+    val recommendedRamGb: Int,
+    val recommended: Boolean = false,
+    val explanation: String = ""
 )
 
 data class LlmSettingsUiState(
@@ -36,9 +40,39 @@ data class LlmSettingsUiState(
 )
 
 private fun defaultModels() = listOf(
-    ModelOption("BitNet b1.58 2B i2_s (Lite)", "Optimized for lower RAM usage", "~1.1 GB", QualityMode.LITE),
-    ModelOption("BitNet b1.58 2B i2_s (Balanced)", "Good balance of speed and quality", "~1.1 GB", QualityMode.BALANCED),
-    ModelOption("BitNet b1.58 2B i2_s (Pro)", "Best quality, same model file", "~1.1 GB", QualityMode.PRO)
+    ModelOption(
+        name = "Phi-2 (Q4_K_M)",
+        description = "Efficient, strong reasoning (2.7B, Q4_K_M)",
+        sizeLabel = "~1.6 GB",
+        mode = QualityMode.LITE,
+        downloadUrl = "https://huggingface.co/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf",
+        recommendedRamGb = 4,
+        recommended = true
+    ),
+    ModelOption(
+        name = "TinyLlama-1.1B (Q4_K_M)",
+        description = "Ultra-light, fast (1.1B, Q4_K_M)",
+        sizeLabel = "~0.8 GB",
+        mode = QualityMode.LITE,
+        downloadUrl = "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
+        recommendedRamGb = 2
+    ),
+    ModelOption(
+        name = "Llama-2 7B (Q4_K_M)",
+        description = "Richer dialogue, larger (7B, Q4_K_M)",
+        sizeLabel = "~4.2 GB",
+        mode = QualityMode.BALANCED,
+        downloadUrl = "https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/resolve/main/llama-2-7b-chat.Q4_K_M.gguf",
+        recommendedRamGb = 6
+    ),
+    ModelOption(
+        name = "Mistral-7B (Q4_K_M)",
+        description = "Efficient, accurate (7B, Q4_K_M)",
+        sizeLabel = "~4.1 GB",
+        mode = QualityMode.PRO,
+        downloadUrl = "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf",
+        recommendedRamGb = 6
+    )
 )
 
 class LlmSettingsViewModel(
