@@ -124,11 +124,12 @@ jobs:
           if ref.startswith("refs/tags/"):
               raw_version = ref_name[1:] if ref_name.startswith("v") else ref_name
               match = re.match(r"^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$", raw_version)
-              if match:
-                  major, minor, patch = map(int, match.groups())
-                  version_code = major * 10000 + minor * 100 + patch
-              else:
-                  version_code = max(base_code, run_number)
+              if not match:
+                  raise SystemExit(
+                      f"Release tags must follow vMAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH, got: {ref_name}"
+                  )
+              major, minor, patch = map(int, match.groups())
+              version_code = major * 1_000_000 + minor * 10_000 + patch
               version_name = raw_version
               docker_tag = sanitize(ref_name)
           else:
@@ -163,10 +164,11 @@ jobs:
           shopt -s nullglob
           for apk in app/build/outputs/apk/release/*.apk; do
             filename="$(basename "$apk")"
-            suffix="${filename#app-}"
-            suffix="${suffix%-release.apk}"
-            if [ "$suffix" = "$filename" ]; then
-              suffix="${filename%.apk}"
+            if [[ "$filename" =~ ^app-(.+)-release\.apk$ ]]; then
+              suffix="${BASH_REMATCH[1]}"
+            else
+              echo "Unexpected APK filename: $filename" >&2
+              exit 1
             fi
             mv "$apk" "app/build/outputs/apk/release/stocksense-v${RELEASE_VERSION_NAME}-${suffix}.apk"
           done
