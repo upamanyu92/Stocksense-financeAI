@@ -24,6 +24,13 @@ class AuthViewModel(
     private val prefsManager: UserPreferencesManager
 ) : ViewModel() {
 
+    companion object {
+        /** Maximum PIN length (digits). */
+        const val MAX_PIN_LENGTH = 6
+        /** Minimum PIN length (digits). */
+        const val MIN_PIN_LENGTH = 4
+    }
+
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
@@ -45,7 +52,7 @@ class AuthViewModel(
     }
 
     fun updateLoginPin(pin: String) {
-        if (pin.length <= 6) {
+        if (pin.length <= MAX_PIN_LENGTH) {
             _uiState.update { it.copy(loginPin = pin, error = null) }
         }
     }
@@ -59,13 +66,13 @@ class AuthViewModel(
     }
 
     fun updateRegisterPin(pin: String) {
-        if (pin.length <= 6) {
+        if (pin.length <= MAX_PIN_LENGTH) {
             _uiState.update { it.copy(registerPin = pin, error = null) }
         }
     }
 
     fun updateRegisterConfirmPin(pin: String) {
-        if (pin.length <= 6) {
+        if (pin.length <= MAX_PIN_LENGTH) {
             _uiState.update { it.copy(registerConfirmPin = pin, error = null) }
         }
     }
@@ -76,7 +83,7 @@ class AuthViewModel(
             _uiState.update { it.copy(error = "Email is required") }
             return
         }
-        if (state.loginPin.length < 4) {
+        if (state.loginPin.length < MIN_PIN_LENGTH) {
             _uiState.update { it.copy(error = "PIN must be at least 4 digits") }
             return
         }
@@ -106,7 +113,7 @@ class AuthViewModel(
             _uiState.update { it.copy(error = "Email is required") }
             return
         }
-        if (state.registerPin.length < 4) {
+        if (state.registerPin.length < MIN_PIN_LENGTH) {
             _uiState.update { it.copy(error = "PIN must be at least 4 digits") }
             return
         }

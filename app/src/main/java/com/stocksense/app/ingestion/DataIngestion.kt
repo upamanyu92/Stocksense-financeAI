@@ -21,6 +21,8 @@ private const val STOCKS_ASSET = "stocks_initial.json"
 private const val STK_ASSET = "stk.json"
 private const val NSE_COMPANIES_ASSET = "nse_companies.json"
 private const val HISTORY_ASSET_PREFIX = "history_"   // e.g. history_AAPL.csv
+/** Batch size for NSE securities insertion to stay within SQLite transaction limits. */
+private const val INSERT_BATCH_SIZE = 500
 
 /**
  * DataIngestion – loads seed stock data from bundled assets on first launch.
@@ -84,8 +86,7 @@ class DataIngestion(
                     name = nameElement.jsonPrimitive.content
                 )
             }
-            // Batch insert in chunks to avoid transaction limits
-            securities.chunked(500).forEach { chunk ->
+            securities.chunked(INSERT_BATCH_SIZE).forEach { chunk ->
                 dao.insertAll(chunk)
             }
             Log.i(TAG, "NSE securities seeded: ${securities.size} entries")

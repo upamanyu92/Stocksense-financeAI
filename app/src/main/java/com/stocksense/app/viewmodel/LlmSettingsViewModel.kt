@@ -90,10 +90,15 @@ class LlmSettingsViewModel(
                 val targetDir = downloader.modelsDir
                 val targetFile = File(targetDir, "imported_model.gguf")
                 context.contentResolver.openInputStream(uri)?.use { input ->
-                    // Validate GGUF magic bytes
+                    // Validate GGUF magic bytes: 0x47 0x47 0x55 0x46 ("GGUF")
                     val header = ByteArray(4)
                     val bytesRead = input.read(header)
-                    if (bytesRead < 4 || String(header) != "GGUF") {
+                    val isGguf = bytesRead == 4 &&
+                        header[0] == 0x47.toByte() &&
+                        header[1] == 0x47.toByte() &&
+                        header[2] == 0x55.toByte() &&
+                        header[3] == 0x46.toByte()
+                    if (!isGguf) {
                         _uiState.update {
                             it.copy(isImporting = false, importError = "Invalid file: not a GGUF model file")
                         }

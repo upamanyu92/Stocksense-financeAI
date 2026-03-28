@@ -69,7 +69,7 @@ class SearchViewModel(
 
         // Search NSE securities
         try {
-            val nseResults = nseSecurityDao.search(query)
+            val nseResults = nseSecurityDao.search(query, limit = 50)
             val nseSearchResults = nseResults.map { nse ->
                 val type = classifySecurityType(nse.name, nse.code)
                 val matchSource = when {
@@ -130,11 +130,10 @@ class SearchViewModel(
     fun loadFullResults(query: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isSearching = true, query = query) }
-            performSearch(query)
-            // For full results screen, show all results
+
             val allResults = mutableListOf<SearchResult>()
             try {
-                val nseResults = nseSecurityDao.search(query)
+                val nseResults = nseSecurityDao.search(query, limit = 500)
                 allResults.addAll(nseResults.map { nse ->
                     SearchResult(
                         displayName = nse.name,
@@ -149,7 +148,7 @@ class SearchViewModel(
                 })
             } catch (_: Exception) { }
 
-            _uiState.update { it.copy(results = allResults, isSearching = false) }
+            _uiState.update { it.copy(results = allResults, totalCount = allResults.size, isSearching = false) }
         }
     }
 
