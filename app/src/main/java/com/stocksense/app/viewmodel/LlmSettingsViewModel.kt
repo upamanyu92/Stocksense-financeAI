@@ -57,6 +57,17 @@ class LlmSettingsViewModel(
     private fun nativeRuntimeMessage(): String =
         "This build was packaged without the on-device llama runtime. Install a native-enabled build to import, download, or validate GGUF models."
 
+    private fun showNativeRuntimeError(showInImportSection: Boolean = false, showInLiveCheck: Boolean = false) {
+        _uiState.update {
+            it.copy(
+                error = if (!showInImportSection && !showInLiveCheck) nativeRuntimeMessage() else null,
+                importError = if (showInImportSection) nativeRuntimeMessage() else null,
+                liveCheckMessage = if (showInLiveCheck) nativeRuntimeMessage() else null,
+                isRunningLiveCheck = false
+            )
+        }
+    }
+
     fun refreshStatus() {
         val metrics = llmEngine.getMetrics()
         _uiState.update {
@@ -73,13 +84,7 @@ class LlmSettingsViewModel(
     fun downloadModel(mode: QualityMode) {
         if (_uiState.value.isDownloading) return
         if (!_uiState.value.isNativeAvailable) {
-            _uiState.update {
-                it.copy(
-                    error = nativeRuntimeMessage(),
-                    importError = null,
-                    liveCheckMessage = null
-                )
-            }
+            showNativeRuntimeError()
             return
         }
         _uiState.update { it.copy(isDownloading = true, downloadProgress = 0f, error = null) }
@@ -105,13 +110,7 @@ class LlmSettingsViewModel(
 
     fun importLocalModel(uri: Uri) {
         if (!_uiState.value.isNativeAvailable) {
-            _uiState.update {
-                it.copy(
-                    importError = nativeRuntimeMessage(),
-                    error = null,
-                    liveCheckMessage = null
-                )
-            }
+            showNativeRuntimeError(showInImportSection = true)
             return
         }
         _uiState.update { it.copy(isImporting = true, importError = null, error = null) }
@@ -175,13 +174,7 @@ class LlmSettingsViewModel(
 
     fun reloadModel() {
         if (!_uiState.value.isNativeAvailable) {
-            _uiState.update {
-                it.copy(
-                    error = nativeRuntimeMessage(),
-                    importError = null,
-                    liveCheckMessage = null
-                )
-            }
+            showNativeRuntimeError()
             return
         }
         viewModelScope.launch {
@@ -192,14 +185,7 @@ class LlmSettingsViewModel(
 
     fun runLiveCheck() {
         if (!_uiState.value.isNativeAvailable) {
-            _uiState.update {
-                it.copy(
-                    liveCheckMessage = nativeRuntimeMessage(),
-                    error = null,
-                    importError = null,
-                    isRunningLiveCheck = false
-                )
-            }
+            showNativeRuntimeError(showInLiveCheck = true)
             return
         }
         viewModelScope.launch {
