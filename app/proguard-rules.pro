@@ -3,6 +3,8 @@
 # TensorFlow Lite
 -keep class org.tensorflow.lite.** { *; }
 -keep class org.tensorflow.lite.gpu.** { *; }
+# AutoValue is referenced by tensorflow-lite-support but not shipped in the APK.
+-dontwarn com.google.auto.value.**
 
 # Room
 -keep class * extends androidx.room.RoomDatabase
