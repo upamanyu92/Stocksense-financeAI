@@ -24,6 +24,12 @@ class StockRepository(
             list.map { it.toDomain() }
         }
 
+    /** Search stocks by symbol or name. */
+    fun searchStocks(query: String): Flow<List<StockData>> =
+        stockDao.searchStocks(query).map { list ->
+            list.map { it.toDomain() }
+        }
+
     /** Observe history for a specific symbol as domain models. */
     fun observeHistory(symbol: String): Flow<List<HistoryPoint>> =
         historyDao.getHistory(symbol).map { list ->

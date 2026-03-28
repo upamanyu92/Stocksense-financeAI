@@ -4,18 +4,30 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stocksense.app.data.model.PredictionResult
 import com.stocksense.app.data.repository.StockRepository
-import com.stocksense.app.engine.LLMInsightEngine
+import com.stocksense.app.engine.AgenticMetrics
+import com.stocksense.app.engine.LlmStatus
 import com.stocksense.app.engine.ModelManager
 import com.stocksense.app.engine.QualityMode
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+
+/** A single message in the chat conversation. */
+data class ChatMessage(
+    val text: String,
+    val isUser: Boolean,
+    val timestamp: Long = System.currentTimeMillis()
+)
 
 data class InsightsUiState(
     val symbol: String = "",
     val insight: String = "",
     val isLoading: Boolean = false,
     val error: String? = null,
-    val qualityMode: QualityMode = QualityMode.BALANCED
+    val qualityMode: QualityMode = QualityMode.BALANCED,
+    val llmStatus: LlmStatus = LlmStatus.NATIVE_UNAVAILABLE,
+    val metrics: AgenticMetrics = AgenticMetrics(),
+    val chatMessages: List<ChatMessage> = emptyList(),
+    val isChatLoading: Boolean = false
 )
 
 class InsightsViewModel(
@@ -25,6 +37,10 @@ class InsightsViewModel(
 
     private val _uiState = MutableStateFlow(InsightsUiState())
     val uiState: StateFlow<InsightsUiState> = _uiState.asStateFlow()
+
+    init {
+        refreshMetrics()
+    }
 
     fun generateInsight(symbol: String, prediction: PredictionResult) {
         _uiState.update { it.copy(symbol = symbol, isLoading = true, error = null) }
@@ -36,8 +52,16 @@ class InsightsViewModel(
                 val insight = modelManager.llmEngine.generateInsight(prediction, prices)
                 modelManager.markUsed()
                 val mode = modelManager.llmEngine.currentQualityMode()
+                val status = modelManager.llmEngine.status
+                val metrics = modelManager.llmEngine.getMetrics()
                 _uiState.update {
-                    it.copy(insight = insight, isLoading = false, qualityMode = mode)
+                    it.copy(
+                        insight = insight,
+                        isLoading = false,
+                        qualityMode = mode,
+                        llmStatus = status,
+                        metrics = metrics
+                    )
                 }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message, isLoading = false) }
@@ -45,10 +69,48 @@ class InsightsViewModel(
         }
     }
 
+    fun sendChatMessage(userMessage: String) {
+        if (userMessage.isBlank()) return
+        val symbol = _uiState.value.symbol
+        val updatedMessages = _uiState.value.chatMessages + ChatMessage(userMessage, isUser = true)
+        _uiState.update { it.copy(chatMessages = updatedMessages, isChatLoading = true) }
+
+        viewModelScope.launch {
+            try {
+                val history = stockRepository.getRecentHistory(symbol, 10)
+                val prices = history.map { it.close }
+                modelManager.ensureLoaded()
+                val response = modelManager.llmEngine.chat(userMessage, symbol, prices)
+                modelManager.markUsed()
+                val metrics = modelManager.llmEngine.getMetrics()
+                val withResponse = _uiState.value.chatMessages + ChatMessage(response, isUser = false)
+                _uiState.update {
+                    it.copy(
+                        chatMessages = withResponse,
+                        isChatLoading = false,
+                        metrics = metrics
+                    )
+                }
+            } catch (e: Exception) {
+                val errorMsg = ChatMessage("Sorry, I couldn't process that: ${e.message}", isUser = false)
+                val withError = _uiState.value.chatMessages + errorMsg
+                _uiState.update { it.copy(chatMessages = withError, isChatLoading = false) }
+            }
+        }
+    }
+
     fun setQualityMode(mode: QualityMode) {
         viewModelScope.launch {
             modelManager.llmEngine.loadModel(mode)
-            _uiState.update { it.copy(qualityMode = mode) }
+            val status = modelManager.llmEngine.status
+            val metrics = modelManager.llmEngine.getMetrics()
+            _uiState.update { it.copy(qualityMode = mode, llmStatus = status, metrics = metrics) }
         }
+    }
+
+    fun refreshMetrics() {
+        val status = modelManager.llmEngine.status
+        val metrics = modelManager.llmEngine.getMetrics()
+        _uiState.update { it.copy(llmStatus = status, metrics = metrics) }
     }
 }
