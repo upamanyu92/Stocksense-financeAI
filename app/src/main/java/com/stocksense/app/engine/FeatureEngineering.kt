@@ -24,6 +24,7 @@ object FeatureEngineering {
     private const val RECENCY_ZERO_SCORE_DAYS = 120.0
     private const val RECENCY_DECAY_SPAN = RECENCY_ZERO_SCORE_DAYS - RECENCY_FULL_SCORE_DAYS
     private const val OPTIMAL_DATA_POINT_COUNT = 1000.0
+    private const val MILLIS_PER_DAY = 86_400_000.0
     private const val COMPLETENESS_WEIGHT = 0.4
     private const val RECENCY_WEIGHT = 0.35
     private const val VOLUME_WEIGHT = 0.25
@@ -274,7 +275,7 @@ object FeatureEngineering {
     /** On-Balance Volume: cumulative volume guided by price direction. */
     fun calcObv(close: DoubleArray, volume: DoubleArray): DoubleArray {
         val n = close.size
-        if (n == 0 || volume.size != n) return doubleArrayOf()
+        if (n == 0 || volume.size != n) return DoubleArray(n) { Double.NaN }
         val obv = DoubleArray(n)
         obv[0] = volume[0]
         for (i in 1 until n) {
@@ -443,7 +444,7 @@ object FeatureEngineering {
         // Recency: full score if ≤ 30 days old, linear decay over 90 days
         val nowMs = System.currentTimeMillis()
         val ageMs = nowMs - lastTimestamp
-        val ageDays = ageMs / 86_400_000.0
+        val ageDays = ageMs / MILLIS_PER_DAY
         val recency = when {
             ageDays <= RECENCY_FULL_SCORE_DAYS -> 1.0
             ageDays >= RECENCY_ZERO_SCORE_DAYS -> 0.0

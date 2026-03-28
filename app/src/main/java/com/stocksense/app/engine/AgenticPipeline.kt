@@ -95,6 +95,9 @@ class AgenticPipeline(
         // History window sizes for the two ensemble "perspectives"
         private const val TECHNICAL_WINDOW = 30
         private const val FUNDAMENTAL_WINDOW = 60
+
+        // Gaussian noise factor when ensemble predictions are identical (0.5% of price)
+        private const val ENSEMBLE_NOISE_FACTOR = 0.005
     }
 
     /** Internal helper mapping a market regime to model preferences. */
@@ -275,7 +278,7 @@ class AgenticPipeline(
         // When both predictions are identical add small Gaussian noise
         if (predA == predB) {
             val lastClose = if (close.isNotEmpty()) close.last() else predA
-            val noise = lastClose * 0.005 // 0.5 % of last close
+            val noise = lastClose * ENSEMBLE_NOISE_FACTOR
             predA += noise
             predB -= noise
             // Slightly differentiate confidence as well
@@ -357,7 +360,10 @@ class AgenticPipeline(
         else      -> ServingAction.SHADOW_ONLY
     }
 
-    /** Return the stricter (higher-ordinal) of two [ServingAction]s. */
+    /**
+     * Return the stricter (higher-ordinal) of two [ServingAction]s.
+     * Ordinal order: PROCEED(0) < PROCEED_WITH_CAUTION(1) < SHADOW_ONLY(2) < BLOCK_PREDICTION(3).
+     */
     private fun stricterAction(a: ServingAction, b: ServingAction): ServingAction =
         if (a.ordinal >= b.ordinal) a else b
 

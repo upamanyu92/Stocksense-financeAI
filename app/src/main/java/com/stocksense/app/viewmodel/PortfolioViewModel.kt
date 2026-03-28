@@ -158,7 +158,7 @@ class PortfolioViewModel(
                 }
             }
             TradeType.SELL -> {
-                if (existing != null) {
+                if (existing != null && quantity <= existing.quantity) {
                     val newQty = existing.quantity - quantity
                     if (newQty <= 0) {
                         portfolioHoldingDao.deleteBySymbol(symbol)
