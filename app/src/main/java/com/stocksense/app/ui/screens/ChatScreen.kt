@@ -47,13 +47,13 @@ fun ChatScreen(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            painter = painterResource(id = R.drawable.ic_ai_agent),
+                            painter = painterResource(id = R.drawable.ic_app_logo),
                             contentDescription = null,
                             modifier = Modifier.size(28.dp),
                             tint = NeonGreen
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("AI Chat")
+                        Text("senseAI")
                     }
                 },
                 navigationIcon = {
@@ -146,7 +146,7 @@ private fun WelcomeMessage() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
-            painter = painterResource(id = R.drawable.ic_ai_agent),
+            painter = painterResource(id = R.drawable.ic_app_logo),
             contentDescription = "StockSense AI",
             modifier = Modifier.size(56.dp),
             tint = NeonGreen

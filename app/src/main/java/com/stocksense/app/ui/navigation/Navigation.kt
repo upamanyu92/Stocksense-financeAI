@@ -133,6 +133,7 @@ fun StockSenseNavGraph(
             composable(Screen.Watchlist.route) {
                 WatchlistScreen(
                     viewModel = watchlistViewModel,
+                    searchViewModel = searchViewModel,
                     onStockClick = { symbol ->
                         navController.navigate(Screen.Prediction.createRoute(symbol))
                     }

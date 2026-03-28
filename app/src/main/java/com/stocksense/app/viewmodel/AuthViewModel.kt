@@ -16,6 +16,7 @@ data class AuthUiState(
     val registerEmail: String = "",
     val registerPin: String = "",
     val registerConfirmPin: String = "",
+    val termsAccepted: Boolean = false,
     val isLoading: Boolean = false,
     val error: String? = null
 )
@@ -77,6 +78,10 @@ class AuthViewModel(
         }
     }
 
+    fun updateTermsAccepted(accepted: Boolean) {
+        _uiState.update { it.copy(termsAccepted = accepted, error = null) }
+    }
+
     fun login() {
         val state = _uiState.value
         if (state.loginEmail.isBlank()) {
@@ -119,6 +124,10 @@ class AuthViewModel(
         }
         if (state.registerPin != state.registerConfirmPin) {
             _uiState.update { it.copy(error = "PINs do not match") }
+            return
+        }
+        if (!state.termsAccepted) {
+            _uiState.update { it.copy(error = "You must accept the Terms and Conditions to continue") }
             return
         }
 

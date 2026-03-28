@@ -62,7 +62,7 @@ fun LoginScreen(
 
             // Logo
             Image(
-                painter = painterResource(id = R.drawable.stocksense_logo),
+                painter = painterResource(id = R.drawable.ic_app_logo),
                 contentDescription = "StockSense Logo",
                 modifier = Modifier.size(100.dp)
             )
