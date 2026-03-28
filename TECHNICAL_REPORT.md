@@ -1159,3 +1159,149 @@ class AlertEvaluationWorker(ctx: Context, params: WorkerParameters) : CoroutineW
 | `prediction_update` | `{symbol, predicted_price, confidence, decision}` | Per-symbol result |
 | `alert_triggered` | `{symbol, condition, message}` | Alert notification |
 | `system_status` | `{background_worker, disk_usage, model_stats}` | System metrics |
+
+---
+
+## PART 4 — ANDROID APP IMPLEMENTATION STATUS
+
+This section documents the current state of the Android app implementation against the architecture guide in Part 3.
+
+---
+
+### 4.1 Implemented Room Entities (12 total)
+
+| Entity | Table Name | Status | Notes |
+|--------|-----------|--------|-------|
+| `Stock` | `stocks` | ✅ Implemented | Symbol PK, prices, market cap, sector |
+| `StockHistory` | `stock_history` | ✅ Implemented | OHLCV with foreign key to Stock |
+| `Prediction` | `predictions` | ✅ Implemented | ML predictions with confidence, direction |
+| `Alert` | `alerts` | ✅ Implemented | Price/prediction alert rules with status tracking |
+| `LearningData` | `learning_data` | ✅ Implemented | Per-symbol adaptive learning weights |
+| `WatchlistItem` | `watchlist` | ✅ Implemented | User's personal stock watchlist |
+| `PortfolioHolding` | `portfolio_holdings` | ✅ Implemented | Holdings with P&L tracking |
+| `Trade` | `trades` | ✅ Implemented | BUY/SELL trade history |
+| `UserLevel` | `user_levels` | ✅ Implemented | Gamification: level, XP, streaks, badges |
+| `NseSecurity` | `nse_securities` | ✅ Implemented | NSE/BSE securities catalog |
+| `ChatMessage` | `chat_history` | ✅ Implemented | AI conversation history |
+| `SystemSetting` | `system_settings` | ✅ Implemented | Key-value app configuration |
+
+Database version: 2 (with destructive migration from v1).
+
+---
+
+### 4.2 Feature Engineering Module
+
+Fully implemented in `FeatureEngineering.kt` as a pure-Kotlin object. All indicators from Section 3.4 are available:
+
+| Function | Algorithm | Status |
+|----------|-----------|--------|
+| `calcSma(close, period)` | Simple rolling average | ✅ |
+| `calcEma(close, period)` | Exponential MA, multiplier = 2/(period+1) | ✅ |
+| `calcRsi(close, period)` | Wilder's smoothing | ✅ |
+| `calcMacd(close)` | EMA(12) − EMA(26), signal EMA(9) | ✅ |
+| `calcBollingerBands(close, period)` | SMA ± 2σ | ✅ |
+| `calcAtr(high, low, close, period)` | True Range with Wilder smoothing | ✅ |
+| `calcAdx(high, low, close, period)` | +DI/−DI/DX with Wilder smoothing | ✅ |
+| `calcObv(close, volume)` | Cumulative volume by price direction | ✅ |
+| `calcStochastic(high, low, close, period)` | %K/%D oscillator | ✅ |
+| `calcFibonacciLevels(high, low, window)` | 38.2%, 50%, 61.8% retracement | ✅ |
+| `computeAllFeatures(close, high, low, vol)` | All-in-one feature map | ✅ |
+| `detectMarketRegime(close, high, low)` | bull/bear/volatile/sideways | ✅ |
+| `computeDataQualityScore(close, timestamp)` | 0.0–1.0 composite score | ✅ |
+
+---
+
+### 4.3 Agentic Prediction Pipeline
+
+Implemented in `AgenticPipeline.kt` with all 5 agents from Section 2.4:
+
+| Agent | Class Method | Purpose | Status |
+|-------|-------------|---------|--------|
+| DataEnrichmentAgent | `enrichData()` | Feature computation + data quality | ✅ |
+| AdaptiveLearningAgent | `adaptiveAnalysis()` | Regime detection + weight adaptation | ✅ |
+| EnsembleAgent | `ensemblePredict()` | Parallel dual-inference + combining | ✅ |
+| PredictionEvaluatorAgent | `evaluatePrediction()` | Trust score + serving action gate | ✅ |
+| OutcomeEvaluatorAgent | `evaluateOutcome()` | Post-hoc feedback to learning engine | ✅ |
+
+**Trust score formula:** `(confidence × 0.5) + (dataQuality × 0.3) + (1/(1+uncertainty) × 0.2)`
+
+**Serving actions:** PROCEED, PROCEED_WITH_CAUTION, SHADOW_ONLY, BLOCK_PREDICTION
+
+**Regime-to-strategy mapping:**
+| Regime | Model Preference | Confidence Adjustment |
+|--------|-----------------|----------------------|
+| bull | transformer | +0.10 |
+| bear | lstm | +0.05 |
+| sideways | ensemble | 0.00 |
+| volatile | ensemble | −0.10 |
+
+---
+
+### 4.4 Screen Implementation Status
+
+| Web Section | Android Screen | Route | Status |
+|-------------|---------------|-------|--------|
+| Dashboard Overview | `DashboardScreen` | `dashboard` | ✅ Portfolio snapshot, sentiment, AI cards |
+| Watchlist | `WatchlistScreen` | `watchlist` | ✅ Add/remove stocks, live prices |
+| Portfolio | `PortfolioScreen` | `portfolio` | ✅ Holdings, P&L, record trades |
+| Predictions | `PredictionScreen` | `prediction/{symbol}` | ✅ 60-day chart, ML inference |
+| Stock Detail / Insights | `InsightsScreen` | `insights/{symbol}` | ✅ LLM insights, quality modes |
+| Alerts | `AlertsScreen` | `alerts` | ✅ Alert CRUD with notifications |
+| Chat | `ChatScreen` | `chat` | ✅ AI chat with suggested prompts |
+| Profile / Settings | `ProfileScreen` | `profile` | ✅ Preferences, theme, logout |
+| Markets / Heatmap | — | — | 🔲 Planned |
+| Risk Meter | — | — | 🔲 Planned |
+| Admin / Data Hub | — | — | 🔲 Planned |
+
+**Navigation:** 5 bottom tabs (Dashboard, Watchlist, Portfolio, Alerts, Profile) + Chat FAB globally available.
+
+---
+
+### 4.5 ViewModels
+
+| ViewModel | Dependencies | State Managed |
+|-----------|-------------|---------------|
+| `DashboardViewModel` | StockRepository | Stocks, portfolio, sentiment, predictions |
+| `PredictionViewModel` | StockRepository, ModelManager | History, prediction result, loading |
+| `InsightsViewModel` | StockRepository, ModelManager | LLM insight, chat, quality mode |
+| `AlertsViewModel` | AlertDao, AlertManager | Alert list, CRUD operations |
+| `ProfileViewModel` | UserPreferencesManager | Preferences, edit mode, settings |
+| `WatchlistViewModel` | WatchlistDao, StockRepository | Watchlist items, stock data |
+| `PortfolioViewModel` | PortfolioHoldingDao, TradeDao, StockRepository | Holdings, trades, P&L totals |
+| `ChatViewModel` | ChatMessageDao, LLMInsightEngine, StockRepository | Messages, loading, history |
+
+---
+
+### 4.6 Background Workers
+
+| Worker | Schedule | Purpose | Status |
+|--------|----------|---------|--------|
+| `DataSyncWorker` | 15-min periodic | Seed DB, evaluate alerts, battery-aware | ✅ |
+| `PredictionWorker` | One-time (UI triggered) | ML inference + notification | ✅ |
+| `LearningWorker` | Daily periodic | Resolve predictions, update weights, prune | ✅ |
+| `ModelDownloadWorker` | One-time (startup) | BitNet model download from HuggingFace | ✅ |
+
+---
+
+### 4.7 Key Adaptation Table (Updated)
+
+| Web App Behaviour | Android Implementation | Status |
+|---|---|---|
+| SQLite WAL + connection pooling | Room (handles WAL automatically) | ✅ |
+| `ThreadPoolExecutor(4)` for batch predictions | `Dispatchers.Default` + `async/awaitAll` in AgenticPipeline | ✅ |
+| 15-year yfinance history download | Asset-bundled seed data + Room persistence | ✅ |
+| Ollama at localhost:11434 | BitNet 1-bit LLM via llama.cpp JNI | ✅ |
+| WebSocket (Socket.IO) | WorkManager periodic + `StateFlow` for UI | ✅ |
+| Server-side matplotlib charts | Canvas-based StockChart composable | ✅ |
+| Daily digest email | Local `NotificationCompat` notification | ✅ |
+| `stk.json` file | Bundled in `assets/`, loaded to Room on first run | ✅ |
+| Flask session cookie auth | `DataStore` preferences for session state | ✅ |
+| CORS / proxy headers | Not applicable on Android | N/A |
+| Background worker daemon thread | WorkManager `PeriodicWorkRequest` | ✅ |
+| Adaptive learning state JSON file | Room `LearningData` entity per symbol | ✅ |
+| Feature factory (Python) | Pure-Kotlin `FeatureEngineering` object | ✅ |
+| 5-agent prediction pipeline | `AgenticPipeline.kt` with coroutines | ✅ |
+| Chat with conversation history | Room `ChatMessage` + `ChatViewModel` | ✅ |
+| Watchlist management | Room `WatchlistItem` + `WatchlistScreen` | ✅ |
+| Portfolio holdings & trades | Room entities + `PortfolioScreen` | ✅ |
+| Gamification (levels, XP, badges) | Room `UserLevel` entity | ✅ |
