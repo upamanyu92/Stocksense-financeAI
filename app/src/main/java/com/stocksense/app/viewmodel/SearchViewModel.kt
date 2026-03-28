@@ -66,6 +66,7 @@ class SearchViewModel(
         _uiState.update { it.copy(isSearching = true) }
 
         val localStocks = stockRepository.observeAllStocks().first()
+        val localSymbolLookup = buildLocalSymbolLookup(localStocks)
         val allResults = mutableListOf<SearchResult>()
 
         // Search NSE securities
@@ -80,7 +81,7 @@ class SearchViewModel(
                     else -> "Match"
                 }
                 val resolvedSymbol = resolveResultSymbol(
-                    localStocks = localStocks,
+                    localSymbolLookup = localSymbolLookup,
                     fallbackSymbol = nse.code,
                     nseSymbol = nse.symbol,
                     displayName = nse.name
@@ -144,6 +145,7 @@ class SearchViewModel(
             _uiState.update { it.copy(isSearching = true, query = query) }
 
             val localStocks = stockRepository.observeAllStocks().first()
+            val localSymbolLookup = buildLocalSymbolLookup(localStocks)
             val allResults = mutableListOf<SearchResult>()
             try {
                 val nseResults = nseSecurityDao.search(query, limit = 500)
@@ -151,7 +153,7 @@ class SearchViewModel(
                     SearchResult(
                         displayName = nse.name,
                         symbol = resolveResultSymbol(
-                            localStocks = localStocks,
+                            localSymbolLookup = localSymbolLookup,
                             fallbackSymbol = nse.code,
                             nseSymbol = nse.symbol,
                             displayName = nse.name
@@ -182,7 +184,7 @@ class SearchViewModel(
     }
 
     private fun resolveResultSymbol(
-        localStocks: List<StockData>,
+        localSymbolLookup: Map<String, String>,
         fallbackSymbol: String,
         nseSymbol: String,
         displayName: String
@@ -191,11 +193,17 @@ class SearchViewModel(
             return nseSymbol
         }
 
-        val localMatch = localStocks.firstOrNull { stock ->
-            stock.name.equals(displayName, ignoreCase = true) ||
-                stock.symbol.equals(fallbackSymbol, ignoreCase = true)
-        }
+        return localSymbolLookup[displayName.uppercase()]
+            ?: localSymbolLookup[fallbackSymbol.uppercase()]
+            ?: fallbackSymbol
+    }
 
-        return localMatch?.symbol ?: fallbackSymbol
+    private fun buildLocalSymbolLookup(localStocks: List<StockData>): Map<String, String> =
+        buildMap {
+            localStocks.forEach { stock ->
+                put(stock.name.uppercase(), stock.symbol)
+                put(stock.symbol.uppercase(), stock.symbol)
+            }
+        }
     }
 }

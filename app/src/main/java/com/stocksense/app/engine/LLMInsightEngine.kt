@@ -274,7 +274,7 @@ class LLMInsightEngine(private val context: Context) {
             val output = LlamaCpp.runInference(contextHandle, LIVE_CHECK_PROMPT, maxTokens = 8).trim()
             lastInferenceTimeMs = System.currentTimeMillis() - startTime
             totalInferenceCount++
-            val isHealthy = output.isNotBlank()
+            val isHealthy = output.contains("OK", ignoreCase = true)
             status = if (isHealthy) LlmStatus.READY else LlmStatus.LOAD_FAILED
             isHealthy
         } catch (e: Exception) {
