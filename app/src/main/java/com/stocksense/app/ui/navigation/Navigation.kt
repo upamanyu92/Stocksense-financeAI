@@ -29,6 +29,7 @@ fun StockSenseNavGraph(
     insightsViewModel: InsightsViewModel,
     alertsViewModel: AlertsViewModel,
     profileViewModel: ProfileViewModel,
+    feedbackViewModel: FeedbackViewModel,
     watchlistViewModel: WatchlistViewModel,
     portfolioViewModel: PortfolioViewModel,
     chatViewModel: ChatViewModel,
@@ -185,6 +186,9 @@ fun StockSenseNavGraph(
                     onNavigateToLlmSettings = {
                         navController.navigate(Screen.LlmSettings.route)
                     },
+                    onNavigateToFeedback = {
+                        navController.navigate(Screen.Feedback.route)
+                    },
                     onLogout = {
                         authViewModel.logout()
                         navController.navigate(Screen.Login.route) {
@@ -196,6 +200,12 @@ fun StockSenseNavGraph(
             composable(Screen.LlmSettings.route) {
                 LlmSettingsScreen(
                     viewModel = llmSettingsViewModel,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(Screen.Feedback.route) {
+                FeedbackScreen(
+                    viewModel = feedbackViewModel,
                     onBack = { navController.popBackStack() }
                 )
             }
