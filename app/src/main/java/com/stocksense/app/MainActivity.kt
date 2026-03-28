@@ -59,7 +59,7 @@ class MainActivity : ComponentActivity() {
         val profileViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
-                ProfileViewModel(app.userPreferencesManager) as T
+                ProfileViewModel(app.userPreferencesManager, app.modelManager) as T
         })[ProfileViewModel::class.java]
 
         val watchlistViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {

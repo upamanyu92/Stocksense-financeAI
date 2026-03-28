@@ -8,13 +8,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.stocksense.app.engine.LlmStatus
 import com.stocksense.app.viewmodel.ProfileViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -216,6 +219,75 @@ fun ProfileScreen(
                                     label = { Text(mode) }
                                 )
                             }
+                        }
+                    }
+                }
+            }
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Local LLM Agent", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "Live readiness check for the on-device AI agent",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        FilledTonalIconButton(
+                            onClick = { viewModel.refreshLlmStatus() },
+                            enabled = !uiState.isCheckingLlm
+                        ) {
+                            if (uiState.isCheckingLlm) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(Icons.Default.Refresh, contentDescription = "Refresh LLM status")
+                            }
+                        }
+                    }
+
+                    val (statusText, statusColor) = when (uiState.llmStatus) {
+                        LlmStatus.READY -> "Active and ready" to Color(0xFF2E7D32)
+                        LlmStatus.LOADING -> "Loading model into memory" to Color(0xFFF9A825)
+                        LlmStatus.MODEL_NOT_DOWNLOADED -> "Model not downloaded yet" to MaterialTheme.colorScheme.error
+                        LlmStatus.NATIVE_UNAVAILABLE -> "Native llama runtime not enabled in this build" to MaterialTheme.colorScheme.error
+                        LlmStatus.LOAD_FAILED -> "Model failed to load on this device" to MaterialTheme.colorScheme.error
+                        LlmStatus.TEMPLATE_FALLBACK -> "Fallback mode only — local agent inactive" to MaterialTheme.colorScheme.error
+                    }
+
+                    Surface(
+                        color = statusColor.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                statusText,
+                                color = statusColor,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "Model file: ${uiState.llmMetrics.modelFileName.ifBlank { "None" }}",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Text(
+                                "Downloaded: ${if (uiState.llmMetrics.isModelDownloaded) "Yes" else "No"} · Native runtime: ${if (uiState.llmMetrics.isNativeAvailable) "Available" else "Unavailable"}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
                         }
                     }
                 }

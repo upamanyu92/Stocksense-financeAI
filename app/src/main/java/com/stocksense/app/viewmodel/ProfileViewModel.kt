@@ -2,6 +2,9 @@ package com.stocksense.app.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.stocksense.app.engine.AgenticMetrics
+import com.stocksense.app.engine.LlmStatus
+import com.stocksense.app.engine.ModelManager
 import com.stocksense.app.preferences.UserPreferences
 import com.stocksense.app.preferences.UserPreferencesManager
 import kotlinx.coroutines.flow.*
@@ -12,11 +15,15 @@ data class ProfileUiState(
     val isEditing: Boolean = false,
     val editName: String = "",
     val editEmail: String = "",
-    val isSaving: Boolean = false
+    val isSaving: Boolean = false,
+    val llmStatus: LlmStatus = LlmStatus.NATIVE_UNAVAILABLE,
+    val llmMetrics: AgenticMetrics = AgenticMetrics(),
+    val isCheckingLlm: Boolean = false
 )
 
 class ProfileViewModel(
-    private val prefsManager: UserPreferencesManager
+    private val prefsManager: UserPreferencesManager,
+    private val modelManager: ModelManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProfileUiState())
@@ -34,6 +41,7 @@ class ProfileViewModel(
                 }
             }
         }
+        refreshLlmStatus()
     }
 
     fun startEditing() {
@@ -94,6 +102,32 @@ class ProfileViewModel(
     fun updateQualityMode(mode: String) {
         viewModelScope.launch {
             prefsManager.updateDefaultQualityMode(mode)
+        }
+    }
+
+    fun refreshLlmStatus() {
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(isCheckingLlm = true) }
+                modelManager.ensureLoaded()
+                val metrics = modelManager.llmEngine.getMetrics()
+                _uiState.update {
+                    it.copy(
+                        llmStatus = metrics.status,
+                        llmMetrics = metrics,
+                        isCheckingLlm = false
+                    )
+                }
+            } catch (_: Exception) {
+                val metrics = modelManager.llmEngine.getMetrics()
+                _uiState.update {
+                    it.copy(
+                        llmStatus = metrics.status,
+                        llmMetrics = metrics,
+                        isCheckingLlm = false
+                    )
+                }
+            }
         }
     }
 }
