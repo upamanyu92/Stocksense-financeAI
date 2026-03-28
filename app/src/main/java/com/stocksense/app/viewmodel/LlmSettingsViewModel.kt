@@ -36,15 +36,14 @@ data class LlmSettingsUiState(
 )
 
 private fun defaultModels() = listOf(
-    ModelOption("BitNet b1.58 2B TQ1_0 (Lite)", "Low RAM usage, fastest inference", "~400 MB", QualityMode.LITE),
-    ModelOption("BitNet b1.58 2B TQ2_0 (Balanced)", "Good quality/speed balance", "~600 MB", QualityMode.BALANCED),
-    ModelOption("BitNet b1.58 2B Q4_0 (Pro)", "Best quality, requires ≥8 GB RAM", "~1.2 GB", QualityMode.PRO)
+    ModelOption("BitNet b1.58 2B i2_s (Lite)", "Optimized for lower RAM usage", "~1.1 GB", QualityMode.LITE),
+    ModelOption("BitNet b1.58 2B i2_s (Balanced)", "Good balance of speed and quality", "~1.1 GB", QualityMode.BALANCED),
+    ModelOption("BitNet b1.58 2B i2_s (Pro)", "Best quality, same model file", "~1.1 GB", QualityMode.PRO)
 )
 
 class LlmSettingsViewModel(
     private val downloader: BitNetModelDownloader,
-    private val llmEngine: LLMInsightEngine,
-    private val context: Context
+    private val llmEngine: LLMInsightEngine
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LlmSettingsUiState())
@@ -80,17 +79,25 @@ class LlmSettingsViewModel(
                     llmEngine.loadModel(mode)
                     refreshStatus()
                 } else {
-                    _uiState.update { it.copy(error = "Download failed. Check your internet connection.") }
+                    _uiState.update {
+                        it.copy(error = "Model download failed. The model file may be unavailable online. Please use 'Import Local Model' below to add a compatible GGUF file from your device.")
+                    }
                 }
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = "Download error: ${e.message}") }
+                val is404 = e.message?.contains("404") == true
+                val msg = if (is404) {
+                    "Model download failed (404 Not Found). The model file is not available online. Please use 'Import Local Model' below to add a compatible GGUF file from your device."
+                } else {
+                    "Download error: ${e.message}"
+                }
+                _uiState.update { it.copy(error = msg) }
             } finally {
                 _uiState.update { it.copy(isDownloading = false) }
             }
         }
     }
 
-    fun importLocalModel(uri: Uri) {
+    fun importLocalModel(context: Context, uri: Uri) {
         _uiState.update { it.copy(isImporting = true, importError = null, error = null) }
 
         viewModelScope.launch {
