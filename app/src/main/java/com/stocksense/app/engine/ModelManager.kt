@@ -2,11 +2,8 @@ package com.stocksense.app.engine
 
 import android.content.Context
 import android.util.Log
-import com.stocksense.app.data.model.PredictionResult
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val TAG = "ModelManager"
 private const val IDLE_TIMEOUT_MS = 5 * 60 * 1000L  // 5 minutes
@@ -24,16 +21,13 @@ class ModelManager(context: Context) {
     val predictionEngine = PredictionEngine(context)
     val llmEngine = LLMInsightEngine(context)
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var lastUsedMs = 0L
 
     /** Ensure both models are loaded; call before inference. */
-    fun ensureLoaded(mode: QualityMode = llmEngine.currentQualityMode()) {
+    suspend fun ensureLoaded(mode: QualityMode = llmEngine.currentQualityMode()) = withContext(Dispatchers.IO) {
         lastUsedMs = System.currentTimeMillis()
         predictionEngine.loadModel()
-        scope.launch {
-            llmEngine.loadModel(mode)
-        }
+        llmEngine.loadModel(mode)
     }
 
     /** Release models from memory (called when app goes to background or battery is low). */

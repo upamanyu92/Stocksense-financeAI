@@ -15,7 +15,8 @@ data class PredictionUiState(
     val history: List<HistoryPoint> = emptyList(),
     val prediction: PredictionResult? = null,
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val warning: String? = null
 )
 
 class PredictionViewModel(
@@ -27,7 +28,7 @@ class PredictionViewModel(
     val uiState: StateFlow<PredictionUiState> = _uiState.asStateFlow()
 
     fun loadStock(symbol: String) {
-        _uiState.update { it.copy(symbol = symbol, isLoading = true) }
+        _uiState.update { it.copy(symbol = symbol, isLoading = true, error = null, warning = null) }
         viewModelScope.launch {
             val history = stockRepository.getRecentHistory(symbol, 60)
             _uiState.update { it.copy(history = history, isLoading = false) }
@@ -39,10 +40,37 @@ class PredictionViewModel(
         viewModelScope.launch {
             try {
                 val history = stockRepository.getRecentHistory(symbol, 60)
+                if (history.isEmpty()) {
+                    _uiState.update {
+                        it.copy(
+                            history = emptyList(),
+                            prediction = null,
+                            error = "No price history available for $symbol yet.",
+                            warning = null,
+                            isLoading = false
+                        )
+                    }
+                    return@launch
+                }
+
                 modelManager.ensureLoaded()
                 val result = modelManager.predictionEngine.predict(symbol, history)
+                val warning = when {
+                    !modelManager.predictionEngine.isBundledModelAvailable() ->
+                        "On-device prediction model is not bundled in this build, so a heuristic estimate is shown."
+                    !modelManager.predictionEngine.isModelLoaded() ->
+                        "Prediction model failed to load, so a heuristic estimate is shown."
+                    else -> null
+                }
                 modelManager.markUsed()
-                _uiState.update { it.copy(prediction = result, history = history, isLoading = false) }
+                _uiState.update {
+                    it.copy(
+                        prediction = result,
+                        history = history,
+                        warning = warning,
+                        isLoading = false
+                    )
+                }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message, isLoading = false) }
             }

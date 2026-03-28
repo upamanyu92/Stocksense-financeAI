@@ -51,13 +51,37 @@ class InsightsViewModel(
         viewModelScope.launch {
             try {
                 val history = stockRepository.getRecentHistory(symbol, 10)
+                if (history.isEmpty()) {
+                    _uiState.update {
+                        it.copy(
+                            insight = "",
+                            isLoading = false,
+                            error = "Recent price history is unavailable for $symbol."
+                        )
+                    }
+                    return@launch
+                }
                 val prices = history.map { it.close }
                 modelManager.ensureLoaded()
-                val insight = modelManager.llmEngine.generateInsight(prediction, prices)
-                modelManager.markUsed()
                 val mode = modelManager.llmEngine.currentQualityMode()
                 val status = modelManager.llmEngine.status
                 val metrics = modelManager.llmEngine.getMetrics()
+                if (status != LlmStatus.READY) {
+                    _uiState.update {
+                        it.copy(
+                            insight = "",
+                            isLoading = false,
+                            qualityMode = mode,
+                            llmStatus = status,
+                            metrics = metrics,
+                            error = llmUnavailableMessage(status, metrics.modelFileName)
+                        )
+                    }
+                    return@launch
+                }
+
+                val insight = modelManager.llmEngine.generateInsight(prediction, prices)
+                modelManager.markUsed()
                 _uiState.update {
                     it.copy(
                         insight = insight,
@@ -82,8 +106,32 @@ class InsightsViewModel(
         viewModelScope.launch {
             try {
                 val history = stockRepository.getRecentHistory(symbol, 10)
+                if (history.isEmpty()) {
+                    val errorMsg = ChatMessage("Recent market data for $symbol is unavailable right now.", isUser = false)
+                    val withError = (_uiState.value.chatMessages + errorMsg).takeLast(MAX_CHAT_HISTORY)
+                    _uiState.update { it.copy(chatMessages = withError, isChatLoading = false) }
+                    return@launch
+                }
                 val prices = history.map { it.close }
                 modelManager.ensureLoaded()
+                val status = modelManager.llmEngine.status
+                if (status != LlmStatus.READY) {
+                    val metrics = modelManager.llmEngine.getMetrics()
+                    val response = ChatMessage(
+                        llmUnavailableMessage(status, metrics.modelFileName),
+                        isUser = false
+                    )
+                    val withResponse = (_uiState.value.chatMessages + response).takeLast(MAX_CHAT_HISTORY)
+                    _uiState.update {
+                        it.copy(
+                            chatMessages = withResponse,
+                            isChatLoading = false,
+                            llmStatus = status,
+                            metrics = metrics
+                        )
+                    }
+                    return@launch
+                }
                 val response = modelManager.llmEngine.chat(userMessage, symbol, prices)
                 modelManager.markUsed()
                 val metrics = modelManager.llmEngine.getMetrics()
@@ -92,6 +140,7 @@ class InsightsViewModel(
                     it.copy(
                         chatMessages = withResponse,
                         isChatLoading = false,
+                        llmStatus = status,
                         metrics = metrics
                     )
                 }
@@ -116,5 +165,14 @@ class InsightsViewModel(
         val status = modelManager.llmEngine.status
         val metrics = modelManager.llmEngine.getMetrics()
         _uiState.update { it.copy(llmStatus = status, metrics = metrics) }
+    }
+
+    private fun llmUnavailableMessage(status: LlmStatus, modelFileName: String): String = when (status) {
+        LlmStatus.READY -> ""
+        LlmStatus.LOADING -> "The local LLM is still loading. Please try again in a moment."
+        LlmStatus.MODEL_NOT_DOWNLOADED -> "The local LLM model (${modelFileName.ifBlank { "selected model" }}) is not downloaded yet."
+        LlmStatus.NATIVE_UNAVAILABLE -> "This build does not have the local llama native runtime enabled, so the on-device LLM agent cannot start."
+        LlmStatus.LOAD_FAILED -> "The local LLM model was found but failed to load on this device."
+        LlmStatus.TEMPLATE_FALLBACK -> "The app is in template fallback mode because the local LLM agent is not active."
     }
 }

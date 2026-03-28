@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+
+    <!-- Background circle -->
+    <path
+        android:pathData="M60,60m-58,0a58,58 0,1 1,116 0a58,58 0,1 1,-116 0"
+        android:fillColor="#0E1117" />
+
+    <!-- Outer ring -->
+    <path
+        android:pathData="M60,60m-56,0a56,56 0,1 1,112 0a56,56 0,1 1,-112 0"
+        android:strokeColor="#5CC8FF"
+        android:strokeWidth="2"
+        android:fillColor="#00000000" />
+
+    <!-- Stock chart line (uptrend) -->
+    <path
+        android:pathData="M20,80 L35,65 L45,72 L60,45 L75,50 L85,30 L100,35"
+        android:strokeColor="#3DF58C"
+        android:strokeWidth="3.5"
+        android:fillColor="#00000000"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <!-- Chart area fill (gradient-like effect) -->
+    <path
+        android:pathData="M20,80 L35,65 L45,72 L60,45 L75,50 L85,30 L100,35 L100,90 L20,90 Z"
+        android:fillColor="#1A3DF58C" />
+
+    <!-- Arrow tip at end of chart -->
+    <path
+        android:pathData="M95,30 L100,35 L95,40"
+        android:strokeColor="#3DF58C"
+        android:strokeWidth="2.5"
+        android:fillColor="#00000000"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <!-- S letter stylized -->
+    <path
+        android:pathData="M42,18 Q52,10 62,18 Q72,26 62,34 Q52,42 42,34 Q32,26 42,18"
+        android:strokeColor="#5CC8FF"
+        android:strokeWidth="2"
+        android:fillColor="#00000000"
+        android:strokeLineCap="round" />
+</vector>

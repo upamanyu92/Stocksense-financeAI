@@ -4,9 +4,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,17 +17,20 @@ import androidx.compose.ui.unit.dp
 import com.stocksense.app.data.database.entities.WatchlistItem
 import com.stocksense.app.data.model.StockData
 import com.stocksense.app.ui.components.EmptyState
+import com.stocksense.app.ui.components.SearchDropdown
 import com.stocksense.app.ui.theme.*
+import com.stocksense.app.viewmodel.SearchViewModel
 import com.stocksense.app.viewmodel.WatchlistViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WatchlistScreen(
     viewModel: WatchlistViewModel,
+    searchViewModel: SearchViewModel,
     onStockClick: (String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var showAddDialog by remember { mutableStateOf(false) }
+    val searchState by searchViewModel.uiState.collectAsState()
 
     Scaffold(
         topBar = {
@@ -37,30 +42,72 @@ fun WatchlistScreen(
                 )
             )
         },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDialog = true },
-                containerColor = NeonGreen,
-                contentColor = DeepBlack
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add to Watchlist")
-            }
-        },
         containerColor = DeepBlack
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // Inline search bar
+            OutlinedTextField(
+                value = searchState.query,
+                onValueChange = { searchViewModel.updateQuery(it) },
+                placeholder = { Text("Search company name or symbol…", color = MutedGrey) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MutedGrey) },
+                trailingIcon = {
+                    if (searchState.query.isNotBlank()) {
+                        IconButton(onClick = { searchViewModel.clearSearch() }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Clear search", tint = MutedGrey)
+                        }
+                    }
+                },
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = NeonGreen,
+                    unfocusedBorderColor = GlassStroke,
+                    cursorColor = NeonGreen,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                ),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            )
+
+            // Search dropdown — tap a result to add it to watchlist
+            if (searchState.query.isNotBlank() && (searchState.results.isNotEmpty() || searchState.isSearching)) {
+                SearchDropdown(
+                    results = searchState.results,
+                    totalCount = searchState.totalCount,
+                    isSearching = searchState.isSearching,
+                    onResultClick = { result ->
+                        viewModel.addToWatchlist(result.code)
+                        searchViewModel.clearSearch()
+                    },
+                    onViewAllClick = { /* results are added inline */ },
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
+
+            // Watchlist items
             when {
                 uiState.isLoading -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center),
-                        color = NeonGreen
-                    )
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.Center),
+                            color = NeonGreen
+                        )
+                    }
                 }
                 uiState.watchlistItems.isEmpty() -> {
-                    EmptyState(
-                        message = "Your watchlist is empty.\nTap + to add stocks.",
-                        modifier = Modifier.align(Alignment.Center)
-                    )
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        EmptyState(
+                            message = "Your watchlist is empty.\nSearch and tap a company to add.",
+                            modifier = Modifier.align(Alignment.Center)
+                        )
+                    }
                 }
                 else -> {
                     LazyColumn(
@@ -79,16 +126,6 @@ fun WatchlistScreen(
                 }
             }
         }
-    }
-
-    if (showAddDialog) {
-        AddToWatchlistDialog(
-            onDismiss = { showAddDialog = false },
-            onConfirm = { symbol ->
-                viewModel.addToWatchlist(symbol)
-                showAddDialog = false
-            }
-        )
     }
 }
 
@@ -158,38 +195,4 @@ private fun WatchlistRow(
             }
         }
     }
-}
-
-@Composable
-private fun AddToWatchlistDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
-) {
-    var symbol by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Graphite,
-        title = { Text("Add to Watchlist", color = ElectricBlue) },
-        text = {
-            OutlinedTextField(
-                value = symbol,
-                onValueChange = { symbol = it.uppercase() },
-                label = { Text("Stock Symbol (e.g. RELIANCE)") },
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = NeonGreen,
-                    cursorColor = NeonGreen
-                )
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { if (symbol.isNotBlank()) onConfirm(symbol) }
-            ) { Text("Add", color = NeonGreen) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = MutedGrey) }
-        }
-    )
 }

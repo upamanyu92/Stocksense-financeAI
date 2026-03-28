@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_prefs")
@@ -25,6 +26,7 @@ class UserPreferencesManager(private val context: Context) {
     private object Keys {
         val DISPLAY_NAME = stringPreferencesKey("display_name")
         val EMAIL = stringPreferencesKey("email")
+        val PIN_HASH = stringPreferencesKey("pin_hash")
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         val DARK_THEME = booleanPreferencesKey("dark_theme")
         val DEFAULT_QUALITY_MODE = stringPreferencesKey("default_quality_mode")
@@ -64,6 +66,32 @@ class UserPreferencesManager(private val context: Context) {
         context.dataStore.edit { it[Keys.DEFAULT_QUALITY_MODE] = mode }
     }
 
+    /** Register a new user with name, email, and hashed PIN. */
+    suspend fun register(name: String, email: String, hashedPin: String) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.DISPLAY_NAME] = name
+            prefs[Keys.EMAIL] = email
+            prefs[Keys.PIN_HASH] = hashedPin
+            prefs[Keys.IS_LOGGED_IN] = true
+        }
+    }
+
+    /** Validate email and hashed PIN against stored credentials. */
+    suspend fun validatePin(email: String, hashedPin: String): Boolean {
+        val prefs = context.dataStore.data.first()
+        val storedEmail = prefs[Keys.EMAIL] ?: ""
+        val storedHash = prefs[Keys.PIN_HASH] ?: ""
+        return storedEmail.equals(email, ignoreCase = true) && storedHash == hashedPin
+    }
+
+    /** Mark user as logged in (after PIN validation). */
+    suspend fun login(email: String) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.IS_LOGGED_IN] = true
+        }
+    }
+
+    /** Legacy login – kept for backward compatibility with ProfileViewModel. */
     suspend fun login(name: String, email: String) {
         context.dataStore.edit { prefs ->
             prefs[Keys.DISPLAY_NAME] = name
