@@ -60,7 +60,7 @@ class StockRepository(
     suspend fun getRecentHistory(
         symbol: String,
         limit: Int = 60,
-        requirementType: MarketDataRequirementType = defaultHistoryRequirement(symbol)
+        requirementType: MarketDataRequirementType = defaultHistoryRequirement()
     ): List<HistoryPoint> {
         var localHistory = historyDao.getRecentHistory(symbol, limit).map {
             HistoryPoint(it.timestamp, it.close, it.volume)
@@ -95,7 +95,7 @@ class StockRepository(
 
     suspend fun refreshHistory(
         symbol: String,
-        requirementType: MarketDataRequirementType = defaultHistoryRequirement(symbol),
+        requirementType: MarketDataRequirementType = defaultHistoryRequirement(),
         limit: Int = 60,
         displayName: String? = null
     ): List<HistoryPoint> {
@@ -167,9 +167,9 @@ class StockRepository(
         if (marketDataRouter?.hasConfiguredProviders() != true) return false
         if (lastUpdated == null) return true
         val freshnessWindow = when (requirementType) {
-            MarketDataRequirementType.REALTIME_ASIA_QUOTE,
-            MarketDataRequirementType.TRADING_GRADE_QUOTE -> 60_000L
-            MarketDataRequirementType.MARKET_METADATA -> 86_400_000L
+            MarketDataRequirementType.REALTIME_ASIA_QUOTE -> 60_000L
+            MarketDataRequirementType.MARKET_METADATA,
+            MarketDataRequirementType.FUNDAMENTAL_ANALYSIS -> 86_400_000L
             else -> 900_000L
         }
         return System.currentTimeMillis() - lastUpdated > freshnessWindow
@@ -196,8 +196,8 @@ class StockRepository(
             else -> MarketDataRequirementType.DELAYED_GLOBAL_QUOTE
         }
 
-    private fun defaultHistoryRequirement(symbol: String): MarketDataRequirementType =
-        MarketDataRequirementType.INTRADAY_HISTORY
+    private fun defaultHistoryRequirement(): MarketDataRequirementType =
+        MarketDataRequirementType.DAILY_HISTORY
 
     // ---------- Mapping helpers ----------
 

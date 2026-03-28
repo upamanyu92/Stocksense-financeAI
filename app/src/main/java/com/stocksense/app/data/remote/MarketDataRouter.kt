@@ -5,9 +5,13 @@ class MarketDataRouter(
 ) {
     suspend fun fetch(request: MarketDataRequest): MarketDataPayload? {
         val matchingProviders = providers.filter { it.isConfigured && it.supports(request) }
-        val fallbackProviders = providers.filter { it.isConfigured && it !in matchingProviders }
+        val providerChain = if (matchingProviders.isNotEmpty()) {
+            matchingProviders
+        } else {
+            providers.filter { it.isConfigured }
+        }
 
-        for (provider in matchingProviders + fallbackProviders) {
+        for (provider in providerChain) {
             val payload = runCatching { provider.fetch(request) }.getOrNull()
             if (payload?.stock != null || payload?.history?.isNotEmpty() == true) {
                 return payload

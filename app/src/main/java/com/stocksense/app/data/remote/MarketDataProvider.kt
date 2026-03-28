@@ -6,9 +6,9 @@ import com.stocksense.app.data.model.StockData
 enum class MarketDataRequirementType {
     DELAYED_GLOBAL_QUOTE,
     MARKET_METADATA,
+    FUNDAMENTAL_ANALYSIS,
     REALTIME_ASIA_QUOTE,
     INTRADAY_HISTORY,
-    TRADING_GRADE_QUOTE,
     DAILY_HISTORY
 }
 

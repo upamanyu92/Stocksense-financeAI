@@ -4,9 +4,6 @@ import com.stocksense.app.data.remote.MarketDataPayload
 import com.stocksense.app.data.remote.MarketDataRequest
 import com.stocksense.app.data.remote.MarketDataRequirementType
 import okhttp3.HttpUrl.Companion.toHttpUrl
-import java.time.Instant
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 
 class FcsApiProvider(
     private val apiKey: String,
@@ -21,9 +18,7 @@ class FcsApiProvider(
     override fun supports(request: MarketDataRequest): Boolean =
         request.requirementType in setOf(
             MarketDataRequirementType.DELAYED_GLOBAL_QUOTE,
-            MarketDataRequirementType.MARKET_METADATA,
-            MarketDataRequirementType.INTRADAY_HISTORY,
-            MarketDataRequirementType.DAILY_HISTORY
+            MarketDataRequirementType.MARKET_METADATA
         )
 
     override suspend fun fetch(request: MarketDataRequest): MarketDataPayload? {
@@ -32,16 +27,8 @@ class FcsApiProvider(
             MarketDataRequirementType.MARKET_METADATA -> fetchQuote(request)
             else -> null
         }
-        val history = if (
-            request.requirementType == MarketDataRequirementType.DAILY_HISTORY ||
-            request.requirementType == MarketDataRequirementType.INTRADAY_HISTORY
-        ) {
-            fetchHistory(request)
-        } else {
-            emptyList()
-        }
-        if (stock == null && history.isEmpty()) return null
-        return MarketDataPayload(stock = stock, history = history)
+        if (stock == null) return null
+        return MarketDataPayload(stock = stock)
     }
 
     private suspend fun fetchQuote(request: MarketDataRequest) =
@@ -63,41 +50,4 @@ class FcsApiProvider(
             )
         }
 
-    private suspend fun fetchHistory(request: MarketDataRequest) =
-        getJson(
-            "$baseUrl/history".toHttpUrl().newBuilder()
-                .addQueryParameter("symbol", request.normalizedSymbol)
-                .addQueryParameter("exchange", request.normalizedExchange)
-                .addQueryParameter("period", request.normalizedInterval)
-                .addQueryParameter("access_key", apiKey)
-                .apply {
-                    request.startTimeMillis?.let {
-                        addQueryParameter("date_from", dateFormatter.format(Instant.ofEpochMilli(it)))
-                    }
-                    request.endTimeMillis?.let {
-                        addQueryParameter("date_to", dateFormatter.format(Instant.ofEpochMilli(it)))
-                    }
-                }
-        )?.let { root ->
-            val rows = root.arrayAt("response").ifEmpty {
-                root.arrayAt("data")
-            }.ifEmpty {
-                root.arrayAt("result")
-            }.ifEmpty {
-                root.arrayAt("history")
-            }
-            rows.mapNotNull { row ->
-                buildHistoryPoint(
-                    timestamp = row.long("timestamp", "t")
-                        ?: row.string("date")?.let { runCatching { Instant.parse("${it}T00:00:00Z").toEpochMilli() }.getOrNull() },
-                    close = row.double("close", "c", "price"),
-                    volume = row.long("volume", "v")
-                )
-            }.sortedBy { it.timestamp }.takeLast(request.limit)
-        } ?: emptyList()
-
-    private companion object {
-        val dateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
-            .withZone(ZoneOffset.UTC)
-    }
 }
