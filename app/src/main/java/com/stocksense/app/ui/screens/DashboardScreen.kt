@@ -101,7 +101,7 @@ fun DashboardScreen(
                     results = searchState.results,
                     totalCount = searchState.totalCount,
                     isSearching = searchState.isSearching,
-                    onResultClick = { result -> onStockClick(result.code) },
+                    onResultClick = { result -> onStockClick(result.symbol) },
                     onViewAllClick = { onViewAllSearchResults(searchState.query) }
                 )
             }

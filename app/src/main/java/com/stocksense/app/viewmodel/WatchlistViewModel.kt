@@ -2,6 +2,7 @@ package com.stocksense.app.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.stocksense.app.data.database.dao.NseSecurityDao
 import com.stocksense.app.data.database.dao.WatchlistDao
 import com.stocksense.app.data.database.entities.WatchlistItem
 import com.stocksense.app.data.model.StockData
@@ -12,13 +13,15 @@ import kotlinx.coroutines.launch
 data class WatchlistUiState(
     val watchlistItems: List<WatchlistItem> = emptyList(),
     val stocks: Map<String, StockData> = emptyMap(),
+    val displayNames: Map<String, String> = emptyMap(),
     val isLoading: Boolean = true,
     val error: String? = null
 )
 
 class WatchlistViewModel(
     private val watchlistDao: WatchlistDao,
-    private val stockRepository: StockRepository
+    private val stockRepository: StockRepository,
+    private val nseSecurityDao: NseSecurityDao
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(WatchlistUiState())
@@ -46,12 +49,12 @@ class WatchlistViewModel(
             val existing = watchlistDao.getBySymbol(symbol.uppercase())
             if (existing != null) return@launch
             val order = watchlistDao.count()
-            watchlistDao.insert(
-                WatchlistItem(
-                    symbol = symbol.uppercase(),
-                    displayOrder = order
-                )
+            val newItem = WatchlistItem(
+                symbol = symbol.uppercase(),
+                displayOrder = order
             )
+            watchlistDao.insert(newItem)
+            refreshStockData(_uiState.value.watchlistItems + newItem)
         }
     }
 
@@ -63,11 +66,20 @@ class WatchlistViewModel(
 
     private fun refreshStockData(items: List<WatchlistItem>) {
         viewModelScope.launch {
-            val stockMap = mutableMapOf<String, StockData>()
-            for (item in items) {
-                stockRepository.getStock(item.symbol)?.let { stockMap[item.symbol] = it }
+            val symbols = items.map { it.symbol }
+            val stocks = stockRepository.getStocks(symbols)
+            val stockMap = stocks.associateBy { it.symbol }.toMutableMap()
+            val displayNameMap = stocks.associate { it.symbol to it.name }.toMutableMap()
+            val unresolvedSymbols = symbols.filterNot(stockMap::containsKey)
+            val nseMatches = if (unresolvedSymbols.isEmpty()) {
+                emptyList()
+            } else {
+                nseSecurityDao.getByCodes(unresolvedSymbols)
             }
-            _uiState.update { it.copy(stocks = stockMap) }
+            nseMatches.forEach { security ->
+                displayNameMap.putIfAbsent(security.code, security.name)
+            }
+            _uiState.update { it.copy(stocks = stockMap, displayNames = displayNameMap) }
         }
     }
 }

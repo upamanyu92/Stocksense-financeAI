@@ -5,6 +5,7 @@ import android.os.BatteryManager
 import android.util.Log
 import androidx.work.*
 import com.stocksense.app.StockSenseApp
+import com.stocksense.app.data.remote.MarketDataRequirementType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -37,8 +38,10 @@ class DataSyncWorker(
             // Seed on first launch
             app.dataIngestion.seedIfEmpty()
 
-            // Optional: fetch updates from network here when online
-            // (currently offline-first, so only seeding is performed)
+            val refreshed = app.stockRepository.refreshTrackedStocks(
+                MarketDataRequirementType.QUOTE
+            )
+            Log.i(TAG, "Tracked stocks refreshed via provider routing: $refreshed")
 
             // Evaluate alerts against current stock data
             val stocks = app.stockRepository.observeAllStocks().first()

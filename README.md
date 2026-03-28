@@ -103,6 +103,9 @@ Pure-Kotlin technical indicator calculations (no external libraries):
 # Release APKs (split per ABI: arm64-v8a, x86_64, universal)
 ./gradlew assembleRelease
 
+# Override the packaged version for a release build
+./gradlew assembleRelease -Pstocksense.versionName=1.2.0 -Pstocksense.versionCode=10200
+
 # Run unit tests
 ./gradlew test
 
@@ -119,7 +122,9 @@ GitHub Actions workflow (`.github/workflows/android-deploy.yml`):
 3. **docker** – Push APK-serving nginx container to GHCR (on `main`/tags)
 4. **publish-release** – Create GitHub Release with APKs (on tags)
 
-APKs are uploaded as workflow artifacts for download after each build.
+App version defaults live in `version.properties`. Tagged releases derive the packaged
+version from the tag (for example `v1.2.0` → `versionName=1.2.0`) and rename APKs to
+include the release version in the filename before publishing.
 
 ## LLM Model Auto-Download
 
