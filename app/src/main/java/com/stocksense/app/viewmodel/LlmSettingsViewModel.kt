@@ -96,7 +96,7 @@ class LlmSettingsViewModel(
         viewModelScope.launch {
             try {
                 val targetDir = downloader.modelsDir
-                val targetFile = File(targetDir, "imported_model.gguf")
+                val targetFile = File(targetDir, BitNetModelDownloader.IMPORTED_MODEL_FILE_NAME)
                 context.contentResolver.openInputStream(uri)?.use { input ->
                     // Validate GGUF magic bytes: 0x47 0x47 0x55 0x46 ("GGUF")
                     val header = ByteArray(4)
@@ -114,7 +114,7 @@ class LlmSettingsViewModel(
                     }
 
                     // Copy file
-                    val tmpFile = File(targetDir, "imported_model.gguf.tmp")
+                    val tmpFile = File(targetDir, "${BitNetModelDownloader.IMPORTED_MODEL_FILE_NAME}.tmp")
                     tmpFile.outputStream().use { output ->
                         output.write(header)
                         input.copyTo(output, bufferSize = 8192)

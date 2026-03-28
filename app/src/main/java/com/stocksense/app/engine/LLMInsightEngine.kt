@@ -11,6 +11,7 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 private const val TAG = "LLMInsightEngine"
+private const val LIVE_CHECK_PROMPT = "Reply with OK only."
 
 /**
  * Status of the local LLM agent.
@@ -266,7 +267,7 @@ class LLMInsightEngine(private val context: Context) {
 
         val startTime = System.currentTimeMillis()
         return@withContext try {
-            val output = LlamaCpp.runInference(contextHandle, "Reply with OK only.", maxTokens = 8).trim()
+            val output = LlamaCpp.runInference(contextHandle, LIVE_CHECK_PROMPT, maxTokens = 8).trim()
             lastInferenceTimeMs = System.currentTimeMillis() - startTime
             totalInferenceCount++
             val isHealthy = output.isNotBlank()
@@ -384,7 +385,7 @@ Answer:""".trimIndent()
             return bundled
         }
 
-        val imported = File(downloader.modelsDir, "imported_model.gguf")
+        val imported = File(downloader.modelsDir, BitNetModelDownloader.IMPORTED_MODEL_FILE_NAME)
         return if (imported.exists()) imported else bundled
     }
 

@@ -49,18 +49,12 @@ class WatchlistViewModel(
             val existing = watchlistDao.getBySymbol(symbol.uppercase())
             if (existing != null) return@launch
             val order = watchlistDao.count()
-            watchlistDao.insert(
-                WatchlistItem(
-                    symbol = symbol.uppercase(),
-                    displayOrder = order
-                )
+            val newItem = WatchlistItem(
+                symbol = symbol.uppercase(),
+                displayOrder = order
             )
-            refreshStockData(
-                _uiState.value.watchlistItems + WatchlistItem(
-                    symbol = symbol.uppercase(),
-                    displayOrder = order
-                )
-            )
+            watchlistDao.insert(newItem)
+            refreshStockData(_uiState.value.watchlistItems + newItem)
         }
     }
 
