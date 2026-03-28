@@ -49,19 +49,21 @@ class BitNetModelDownloader(private val context: Context) {
 
         const val IMPORTED_MODEL_FILE_NAME = "imported_model.gguf"
 
-        /** Map of quality mode to (file-name, download-URL). */
+        /** Map of quality mode to (file-name, download-URL). 
+         *  Note: All quality modes use the same model file since only one variant is available.
+         */
         val MODEL_CATALOGUE: Map<QualityMode, Pair<String, String>> = mapOf(
             QualityMode.LITE to Pair(
-                "bitnet-b1.58-2B-4T-TQ1_0.gguf",
-                "$HF_BASE/bitnet-b1.58-2B-4T-TQ1_0.gguf"
+                "ggml-model-i2_s.gguf",
+                "$HF_BASE/ggml-model-i2_s.gguf"
             ),
             QualityMode.BALANCED to Pair(
-                "bitnet-b1.58-2B-4T-TQ2_0.gguf",
-                "$HF_BASE/bitnet-b1.58-2B-4T-TQ2_0.gguf"
+                "ggml-model-i2_s.gguf",
+                "$HF_BASE/ggml-model-i2_s.gguf"
             ),
             QualityMode.PRO to Pair(
-                "bitnet-b1.58-2B-4T-Q4_0.gguf",
-                "$HF_BASE/bitnet-b1.58-2B-4T-Q4_0.gguf"
+                "ggml-model-i2_s.gguf",
+                "$HF_BASE/ggml-model-i2_s.gguf"
             )
         )
     }
