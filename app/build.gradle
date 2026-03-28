@@ -16,6 +16,13 @@ if (hasReleaseKeystore) {
 
 // Per-ABI version code multiplier so Play Store can distinguish split APKs.
 ext.abiCodes = ['arm64-v8a': 1, 'x86_64': 2]
+def quoteForBuildConfig = { value ->
+    '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
+}
+def fcsApiKey = (project.findProperty('stocksense.fcsApiKey') ?: System.getenv('STOCKSENSE_FCS_API_KEY') ?: '') as String
+def iTickApiKey = (project.findProperty('stocksense.iTickApiKey') ?: System.getenv('STOCKSENSE_ITICK_API_KEY') ?: '') as String
+def alpacaApiKey = (project.findProperty('stocksense.alpacaApiKey') ?: System.getenv('STOCKSENSE_ALPACA_API_KEY') ?: '') as String
+def alpacaApiSecret = (project.findProperty('stocksense.alpacaApiSecret') ?: System.getenv('STOCKSENSE_ALPACA_API_SECRET') ?: '') as String
 
 android {
     namespace 'com.stocksense.app'
@@ -37,6 +44,11 @@ android {
         ndk {
             abiFilters 'arm64-v8a', 'x86_64'
         }
+
+        buildConfigField 'String', 'FCS_API_KEY', quoteForBuildConfig(fcsApiKey)
+        buildConfigField 'String', 'ITICK_API_KEY', quoteForBuildConfig(iTickApiKey)
+        buildConfigField 'String', 'ALPACA_API_KEY', quoteForBuildConfig(alpacaApiKey)
+        buildConfigField 'String', 'ALPACA_API_SECRET', quoteForBuildConfig(alpacaApiSecret)
     }
 
     // Build separate APKs per ABI so each device gets a smaller download.
@@ -93,6 +105,7 @@ android {
 
     buildFeatures {
         compose true
+        buildConfig true
     }
 
     composeOptions {
