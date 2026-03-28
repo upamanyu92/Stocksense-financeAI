@@ -3,12 +3,15 @@ package com.stocksense.app.ui.navigation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -60,7 +63,17 @@ fun StockSenseNavGraph(
 
                     bottomNavItems.forEach { screen ->
                         NavigationBarItem(
-                            icon = { Icon(screen.icon, contentDescription = screen.label) },
+                            icon = {
+                                if (screen.iconRes != null) {
+                                    Icon(
+                                        painter = painterResource(id = screen.iconRes),
+                                        contentDescription = screen.label,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                } else if (screen.icon != null) {
+                                    Icon(screen.icon, contentDescription = screen.label)
+                                }
+                            },
                             label = { Text(screen.label) },
                             selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                             onClick = {
