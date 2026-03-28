@@ -49,6 +49,24 @@ class MainActivity : ComponentActivity() {
                 ProfileViewModel(app.userPreferencesManager) as T
         })[ProfileViewModel::class.java]
 
+        val watchlistViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                WatchlistViewModel(app.watchlistDao, app.stockRepository) as T
+        })[WatchlistViewModel::class.java]
+
+        val portfolioViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                PortfolioViewModel(app.portfolioHoldingDao, app.tradeDao, app.stockRepository) as T
+        })[PortfolioViewModel::class.java]
+
+        val chatViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                ChatViewModel(app.chatMessageDao, app.modelManager.llmEngine, app.stockRepository) as T
+        })[ChatViewModel::class.java]
+
         setContent {
             StockSenseTheme {
                 Surface(
@@ -60,7 +78,10 @@ class MainActivity : ComponentActivity() {
                         predictionViewModel = predictionViewModel,
                         insightsViewModel = insightsViewModel,
                         alertsViewModel = alertsViewModel,
-                        profileViewModel = profileViewModel
+                        profileViewModel = profileViewModel,
+                        watchlistViewModel = watchlistViewModel,
+                        portfolioViewModel = portfolioViewModel,
+                        chatViewModel = chatViewModel
                     )
                 }
             }
