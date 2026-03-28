@@ -12,6 +12,12 @@ env:
   JAVA_VERSION: "17"
   CI: true
 
+# Cancel any in-progress run for the same ref so duplicate triggers
+# (e.g. push + pull_request on the same commit) don't waste CI minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
   packages: write
