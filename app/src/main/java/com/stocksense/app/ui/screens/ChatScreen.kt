@@ -156,13 +156,36 @@ private fun AgentStatusStrip(
     lastInferenceTimeMs: Long,
     onRefresh: () -> Unit
 ) {
-    val (label, color) = when (status) {
-        LlmStatus.READY -> "Agent live" to NeonGreen
-        LlmStatus.LOADING -> "Loading agent" to LuxeGold
-        LlmStatus.MODEL_NOT_DOWNLOADED -> "Model missing" to SoftRed
-        LlmStatus.NATIVE_UNAVAILABLE -> "Runtime unavailable" to SoftRed
-        LlmStatus.LOAD_FAILED -> "Load failed" to SoftRed
-        LlmStatus.TEMPLATE_FALLBACK -> "Fallback mode" to ElectricBlue
+    val (label, color, detail) = when (status) {
+        LlmStatus.READY -> Triple(
+            "Agent live",
+            NeonGreen,
+            buildString {
+                append(modelName.ifBlank { "Local model loaded" })
+                if (lastInferenceTimeMs > 0) append(" • ${lastInferenceTimeMs} ms")
+            }
+        )
+        LlmStatus.LOADING -> Triple("Loading agent", LuxeGold, "Preparing the local model")
+        LlmStatus.MODEL_NOT_DOWNLOADED -> Triple(
+            "Template mode",
+            ElectricBlue,
+            "Using built-in responses until a GGUF model is downloaded"
+        )
+        LlmStatus.NATIVE_UNAVAILABLE -> Triple(
+            "Template mode",
+            ElectricBlue,
+            "Using built-in responses because this build has no native llama runtime"
+        )
+        LlmStatus.LOAD_FAILED -> Triple(
+            "Load failed",
+            SoftRed,
+            "Using built-in responses because the selected model could not load"
+        )
+        LlmStatus.TEMPLATE_FALLBACK -> Triple(
+            "Template mode",
+            ElectricBlue,
+            "Using built-in responses while the local agent is inactive"
+        )
     }
 
     Surface(
@@ -185,10 +208,7 @@ private fun AgentStatusStrip(
             Column(modifier = Modifier.weight(1f)) {
                 Text(label, color = color, style = MaterialTheme.typography.labelLarge)
                 Text(
-                    text = buildString {
-                        append(modelName.ifBlank { "No model selected" })
-                        if (lastInferenceTimeMs > 0) append(" • ${lastInferenceTimeMs} ms")
-                    },
+                    text = detail,
                     style = MaterialTheme.typography.bodySmall,
                     color = MutedGrey
                 )

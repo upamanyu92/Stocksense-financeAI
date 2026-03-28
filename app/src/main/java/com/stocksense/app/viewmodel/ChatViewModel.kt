@@ -72,7 +72,6 @@ class ChatViewModel(
         viewModelScope.launch {
             try {
                 llmEngine.loadModel()
-                val metrics = llmEngine.getMetrics()
                 val symbol = extractSymbol(text)
                 val recentPrices = if (symbol != null) {
                     stockRepository.getRecentHistory(symbol, 10).map { it.close }
@@ -80,15 +79,11 @@ class ChatViewModel(
                     emptyList()
                 }
 
-                val aiResponseText = if (metrics.status == LlmStatus.READY) {
-                    llmEngine.chat(
-                        userMessage = text,
-                        symbol = symbol ?: "GENERAL",
-                        recentPrices = recentPrices
-                    )
-                } else {
-                    llmUnavailableMessage(metrics.status, metrics.modelFileName)
-                }
+                val aiResponseText = llmEngine.chat(
+                    userMessage = text,
+                    symbol = symbol ?: "GENERAL",
+                    recentPrices = recentPrices
+                )
 
                 val updatedMetrics = llmEngine.getMetrics()
 
@@ -161,12 +156,4 @@ class ChatViewModel(
         return knownPatterns.firstOrNull { upper.contains(it) }
     }
 
-    private fun llmUnavailableMessage(status: LlmStatus, modelFileName: String): String = when (status) {
-        LlmStatus.READY -> ""
-        LlmStatus.LOADING -> "The local agent is still loading. Try again in a few seconds."
-        LlmStatus.MODEL_NOT_DOWNLOADED -> "The local model (${modelFileName.ifBlank { "selected model" }}) is not downloaded yet."
-        LlmStatus.NATIVE_UNAVAILABLE -> "This build does not include the native llama runtime, so the on-device agent is unavailable."
-        LlmStatus.LOAD_FAILED -> "The downloaded model was found, but it could not be loaded on this device."
-        LlmStatus.TEMPLATE_FALLBACK -> "The app is still running in template fallback mode."
-    }
 }
