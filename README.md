@@ -1,14 +1,20 @@
 # StockSense – FinanceAI Android
 
-AI-powered stock prediction and analysis platform for Android. Uses Microsoft BitNet 1-bit LLM for on-device financial insight generation with TensorFlow Lite for ML-based stock trend prediction.
+AI-powered stock prediction and analysis platform for Android. Uses Microsoft BitNet 1-bit LLM for on-device financial insight generation with TensorFlow Lite for ML-based stock trend prediction and a multi-agent agentic prediction pipeline.
 
 ## Features
 
 - 📊 **Premium Dashboard** – Real-time portfolio overview, sentiment gauges, agent debate threads
 - 🤖 **Microsoft BitNet LLM** – On-device 1-bit LLM for natural-language stock insights (auto-downloads on first launch)
 - 📈 **ML Predictions** – TensorFlow Lite stock trend prediction with adaptive confidence weighting
+- 🧠 **Agentic Prediction Pipeline** – 5-agent orchestrated pipeline: DataEnrichment → AdaptiveLearning → Ensemble (parallel LLM calls) → PredictionEvaluator → OutcomeEvaluator, with trust scoring and serving-action gating
+- 📉 **Feature Engineering** – Pure-Kotlin technical indicators (SMA, EMA, RSI, MACD, Bollinger Bands, ATR, ADX, OBV, Stochastic, Fibonacci levels) with market regime detection
+- ⭐ **Watchlist** – Personal stock watchlist with add/remove, live price display, and quick-predict access
+- 💼 **Portfolio Management** – Track holdings, record BUY/SELL trades, view invested value, current value, and P&L with colour-coded gains/losses
+- 💬 **AI Chat** – Conversational AI assistant for stock queries, predictions, and watchlist management with suggested prompts and persistent chat history
 - 🔔 **Smart Alerts** – Price-above, price-below, change-percent, and prediction-signal notifications
 - 🧠 **Adaptive Learning** – Self-improving prediction weights based on actual outcomes
+- 🏆 **Gamification** – User levels, XP points, streak tracking, and badges
 - 🌙 **Dark Theme** – Premium dark UI with neon accent colors
 
 ## Architecture
@@ -18,9 +24,69 @@ AI-powered stock prediction and analysis platform for Android. Uses Microsoft Bi
 | UI | Jetpack Compose + Material 3 |
 | LLM | Microsoft BitNet b1.58 via llama.cpp JNI |
 | ML | TensorFlow Lite (on-device) |
-| Database | Room (SQLite) |
+| Database | Room (SQLite) – 12 entities |
 | Background | WorkManager |
 | DI | Manual (no Hilt) |
+| Prediction | 5-Agent Agentic Pipeline |
+| Feature Eng. | Pure Kotlin (rolling window math) |
+
+## Room Database Schema
+
+| Entity | Purpose |
+|--------|---------|
+| `Stock` | Tracked stock symbols with latest price |
+| `StockHistory` | OHLCV data points per stock |
+| `Prediction` | ML prediction records with confidence and direction |
+| `Alert` | User-defined price/prediction alert rules |
+| `LearningData` | Per-symbol adaptive learning weights |
+| `WatchlistItem` | User's personal watchlist |
+| `PortfolioHolding` | Aggregated portfolio holdings with P&L |
+| `Trade` | BUY/SELL trade history |
+| `UserLevel` | Gamification: level, XP, streaks, badges |
+| `NseSecurity` | NSE/BSE securities catalog |
+| `ChatMessage` | AI chat conversation history |
+| `SystemSetting` | Key-value app configuration |
+
+## Screens & Navigation
+
+| Screen | Route | Description |
+|--------|-------|-------------|
+| Dashboard | `dashboard` | Portfolio snapshot, sentiment, AI prediction cards, stock list |
+| Watchlist | `watchlist` | Personal stock watchlist with add/remove |
+| Portfolio | `portfolio` | Holdings, P&L, record trades |
+| Prediction | `prediction/{symbol}` | 60-day chart, ML prediction result |
+| Insights | `insights/{symbol}` | LLM-powered insights + quality mode selector |
+| Alerts | `alerts` | Alert management (create/dismiss/delete) |
+| Chat | `chat` | AI conversational assistant (via FAB) |
+| Profile | `profile` | User settings, preferences, logout |
+
+**Bottom Navigation:** Dashboard · Watchlist · Portfolio · Alerts · Profile
+**Chat FAB:** Floating action button available on all screens except Chat
+
+## Agentic Prediction Pipeline
+
+Five coordinated agents run in sequence for each prediction:
+
+1. **DataEnrichmentAgent** – Computes 20+ technical features via `FeatureEngineering`, data quality score (0.0–1.0)
+2. **AdaptiveLearningAgent** – Detects market regime (bull/bear/volatile/sideways), maps to model preference + confidence adjustment
+3. **EnsembleAgent** – Runs 2 parallel ML predictions (30-day technical + 60-day fundamental windows), combines via confidence-weighted average
+4. **PredictionEvaluatorAgent** – Computes trust score, applies serving-action gate (PROCEED/PROCEED_WITH_CAUTION/SHADOW_ONLY/BLOCK_PREDICTION)
+5. **OutcomeEvaluatorAgent** – Post-hoc evaluation feeding errors back to AdaptiveLearningAgent
+
+**Trust Score:** `(confidence × 0.5) + (dataQuality × 0.3) + (1/(1+uncertainty) × 0.2)`
+
+## Feature Engineering
+
+Pure-Kotlin technical indicator calculations (no external libraries):
+
+| Category | Indicators |
+|----------|-----------|
+| Moving Averages | SMA (20, 50), EMA (20, 50) |
+| Momentum | RSI (14), MACD (12,26,9), Stochastic %K/%D |
+| Volatility | Bollinger Bands (20, 2σ), ATR (14) |
+| Trend | ADX (14), Market Regime Detection |
+| Volume | OBV (On-Balance Volume) |
+| Price Patterns | Fibonacci Retracement (38.2%, 50%, 61.8%) |
 
 ## Requirements
 

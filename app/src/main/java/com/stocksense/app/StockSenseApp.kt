@@ -5,8 +5,14 @@ import android.util.Log
 import com.stocksense.app.alerts.AlertManager
 import com.stocksense.app.data.database.AppDatabase
 import com.stocksense.app.data.database.dao.AlertDao
+import com.stocksense.app.data.database.dao.ChatMessageDao
+import com.stocksense.app.data.database.dao.PortfolioHoldingDao
 import com.stocksense.app.data.database.dao.PredictionDao
+import com.stocksense.app.data.database.dao.TradeDao
+import com.stocksense.app.data.database.dao.UserLevelDao
+import com.stocksense.app.data.database.dao.WatchlistDao
 import com.stocksense.app.data.repository.StockRepository
+import com.stocksense.app.engine.AgenticPipeline
 import com.stocksense.app.engine.BitNetModelDownloader
 import com.stocksense.app.engine.LearningEngine
 import com.stocksense.app.engine.ModelManager
@@ -40,6 +46,11 @@ class StockSenseApp : Application() {
     // DAOs
     val predictionDao: PredictionDao by lazy { database.predictionDao() }
     val alertDao: AlertDao by lazy { database.alertDao() }
+    val watchlistDao: WatchlistDao by lazy { database.watchlistDao() }
+    val portfolioHoldingDao: PortfolioHoldingDao by lazy { database.portfolioHoldingDao() }
+    val tradeDao: TradeDao by lazy { database.tradeDao() }
+    val userLevelDao: UserLevelDao by lazy { database.userLevelDao() }
+    val chatMessageDao: ChatMessageDao by lazy { database.chatMessageDao() }
 
     // Repository
     val stockRepository: StockRepository by lazy {
@@ -51,6 +62,11 @@ class StockSenseApp : Application() {
     val predictionEngine: PredictionEngine get() = modelManager.predictionEngine
     val learningEngine: LearningEngine by lazy {
         LearningEngine(database.predictionDao(), database.learningDataDao())
+    }
+
+    // Agentic prediction pipeline
+    val agenticPipeline: AgenticPipeline by lazy {
+        AgenticPipeline(predictionEngine, modelManager.llmEngine, learningEngine)
     }
 
     // BitNet model downloader

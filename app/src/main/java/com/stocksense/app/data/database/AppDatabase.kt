@@ -2,7 +2,6 @@ package com.stocksense.app.data.database
 
 import android.content.Context
 import androidx.room.*
-import androidx.room.migration.AutoMigrationSpec
 import com.stocksense.app.data.database.dao.*
 import com.stocksense.app.data.database.entities.*
 
@@ -12,9 +11,16 @@ import com.stocksense.app.data.database.entities.*
         StockHistory::class,
         Prediction::class,
         Alert::class,
-        LearningData::class
+        LearningData::class,
+        WatchlistItem::class,
+        PortfolioHolding::class,
+        Trade::class,
+        UserLevel::class,
+        NseSecurity::class,
+        ChatMessage::class,
+        SystemSetting::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -25,6 +31,13 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun predictionDao(): PredictionDao
     abstract fun alertDao(): AlertDao
     abstract fun learningDataDao(): LearningDataDao
+    abstract fun watchlistDao(): WatchlistDao
+    abstract fun portfolioHoldingDao(): PortfolioHoldingDao
+    abstract fun tradeDao(): TradeDao
+    abstract fun userLevelDao(): UserLevelDao
+    abstract fun nseSecurityDao(): NseSecurityDao
+    abstract fun chatMessageDao(): ChatMessageDao
+    abstract fun systemSettingDao(): SystemSettingDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -57,4 +70,10 @@ class Converters {
 
     @TypeConverter
     fun toAlertStatus(value: String): AlertStatus = AlertStatus.valueOf(value)
+
+    @TypeConverter
+    fun fromTradeType(value: TradeType): String = value.name
+
+    @TypeConverter
+    fun toTradeType(value: String): TradeType = TradeType.valueOf(value)
 }
