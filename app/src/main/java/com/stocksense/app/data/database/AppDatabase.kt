@@ -20,7 +20,7 @@ import com.stocksense.app.data.database.entities.*
         ChatMessage::class,
         SystemSetting::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 @TypeConverters(Converters::class)

@@ -2,6 +2,8 @@ package com.stocksense.app.ingestion
 
 import android.content.Context
 import android.util.Log
+import com.stocksense.app.data.database.dao.NseSecurityDao
+import com.stocksense.app.data.database.entities.NseSecurity
 import com.stocksense.app.data.model.HistoryPoint
 import com.stocksense.app.data.model.StockData
 import com.stocksense.app.data.repository.StockRepository
@@ -9,49 +11,87 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
 private const val TAG = "DataIngestion"
 private const val STOCKS_ASSET = "stocks_initial.json"
 private const val STK_ASSET = "stk.json"
+private const val NSE_COMPANIES_ASSET = "nse_companies.json"
 private const val HISTORY_ASSET_PREFIX = "history_"   // e.g. history_AAPL.csv
+/** Batch size for NSE securities insertion to stay within SQLite transaction limits. */
+private const val INSERT_BATCH_SIZE = 500
 
 /**
  * DataIngestion – loads seed stock data from bundled assets on first launch.
  *
  * Assets required (place in app/src/main/assets/):
- *   stk.json             – primary array of company details (with industry, description, etc.)
- *   stocks_initial.json  – fallback array of [SeedStock]
- *   history_AAPL.csv     – CSV with columns: date,open,high,low,close,volume
- *   history_GOOG.csv     – …
+ *   stk.json               – primary array of company details (with industry, description, etc.)
+ *   stocks_initial.json    – fallback array of [SeedStock]
+ *   nse_companies.json     – flat JSON object {"code": "company name", ...} with ~5,000 entries
+ *   history_AAPL.csv       – CSV with columns: date,open,high,low,close,volume
  */
 class DataIngestion(
     private val context: Context,
-    private val repository: StockRepository
+    private val repository: StockRepository,
+    private val nseSecurityDao: NseSecurityDao? = null
 ) {
 
     /**
      * Seed the database from bundled assets if it is empty.
      * Prefers stk.json (comprehensive company details); falls back to stocks_initial.json.
+     * Also seeds NSE securities from nse_companies.json.
      * Safe to call multiple times; will no-op if data already exists.
      */
     suspend fun seedIfEmpty() = withContext(Dispatchers.IO) {
         if (repository.stockCount() > 0) {
-            Log.d(TAG, "Database already seeded – skipping")
-            return@withContext
-        }
-        try {
-            val stocks = loadStocksFromStkAsset() ?: loadStocksFromAsset()
-            repository.saveStocks(stocks)
-            for (stock in stocks) {
-                loadHistoryFromAsset(stock.symbol)?.let { history ->
-                    repository.saveHistory(stock.symbol, history)
+            Log.d(TAG, "Database already seeded – skipping stocks")
+        } else {
+            try {
+                val stocks = loadStocksFromStkAsset() ?: loadStocksFromAsset()
+                repository.saveStocks(stocks)
+                for (stock in stocks) {
+                    loadHistoryFromAsset(stock.symbol)?.let { history ->
+                        repository.saveHistory(stock.symbol, history)
+                    }
                 }
+                Log.i(TAG, "Database seeded with ${stocks.size} stocks")
+            } catch (e: Exception) {
+                Log.e(TAG, "Seeding failed: ${e.message}")
             }
-            Log.i(TAG, "Database seeded with ${stocks.size} stocks")
+        }
+
+        // Seed NSE securities
+        seedNseSecuritiesIfEmpty()
+    }
+
+    /**
+     * Load the full NSE company list from nse_companies.json into the nse_securities table.
+     * The file is a flat JSON object: {"code": "company name", ...}
+     */
+    private suspend fun seedNseSecuritiesIfEmpty() {
+        val dao = nseSecurityDao ?: return
+        try {
+            if (dao.count() > 0) {
+                Log.d(TAG, "NSE securities already seeded – skipping")
+                return
+            }
+            val jsonStr = context.assets.open(NSE_COMPANIES_ASSET).bufferedReader().readText()
+            val jsonObj = Json.decodeFromString<JsonObject>(jsonStr)
+            val securities = jsonObj.entries.map { (code, nameElement) ->
+                NseSecurity(
+                    code = code,
+                    name = nameElement.jsonPrimitive.content
+                )
+            }
+            securities.chunked(INSERT_BATCH_SIZE).forEach { chunk ->
+                dao.insertAll(chunk)
+            }
+            Log.i(TAG, "NSE securities seeded: ${securities.size} entries")
         } catch (e: Exception) {
-            Log.e(TAG, "Seeding failed: ${e.message}")
+            Log.e(TAG, "NSE securities seeding failed: ${e.message}")
         }
     }
 

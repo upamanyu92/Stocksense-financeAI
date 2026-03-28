@@ -8,6 +8,7 @@ import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.gpu.CompatibilityList
 import org.tensorflow.lite.gpu.GpuDelegate
 import java.io.FileInputStream
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
@@ -66,6 +67,15 @@ class PredictionEngine(private val context: Context) {
         interpreter = null
         gpuDelegate?.close()
         gpuDelegate = null
+    }
+
+    fun isModelLoaded(): Boolean = interpreter != null
+
+    fun isBundledModelAvailable(): Boolean = try {
+        context.assets.openFd(MODEL_FILE).close()
+        true
+    } catch (_: IOException) {
+        false
     }
 
     // ---------- Inference ----------

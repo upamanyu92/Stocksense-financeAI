@@ -71,6 +71,22 @@ fun PredictionScreen(
                 )
             }
 
+            uiState.warning?.let { warning ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                    )
+                ) {
+                    Text(
+                        text = warning,
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.weight(1f))
 
             // Action buttons

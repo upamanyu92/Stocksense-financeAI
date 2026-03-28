@@ -13,4 +13,18 @@
     <string name="notification_channel_alerts_desc">Notifications for stock price alerts and predictions</string>
     <string name="channel_sync">Background Sync</string>
     <string name="channel_sync_desc">Background data sync notifications</string>
+    <string name="login">Sign In</string>
+    <string name="register">Create Account</string>
+    <string name="email_hint">Email</string>
+    <string name="pin_hint">PIN</string>
+    <string name="name_hint">Display Name</string>
+    <string name="login_welcome">Welcome Back</string>
+    <string name="register_title">Create Account</string>
+    <string name="ai_chat">AI Chat</string>
+    <string name="llm_settings">LLM Model Settings</string>
+    <string name="search_results">Search Results</string>
+    <string name="no_results_found">No results found</string>
+    <string name="view_all_results">View all results</string>
+    <string name="logout">Log Out</string>
+    <string name="profile">Profile</string>
 </resources>

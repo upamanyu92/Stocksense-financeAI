@@ -51,6 +51,7 @@ class StockSenseApp : Application() {
     val tradeDao: TradeDao by lazy { database.tradeDao() }
     val userLevelDao: UserLevelDao by lazy { database.userLevelDao() }
     val chatMessageDao: ChatMessageDao by lazy { database.chatMessageDao() }
+    val nseSecurityDao by lazy { database.nseSecurityDao() }
 
     // Repository
     val stockRepository: StockRepository by lazy {
@@ -76,7 +77,7 @@ class StockSenseApp : Application() {
     val alertManager: AlertManager by lazy { AlertManager(this, database.alertDao()) }
 
     // Data ingestion
-    val dataIngestion: DataIngestion by lazy { DataIngestion(this, stockRepository) }
+    val dataIngestion: DataIngestion by lazy { DataIngestion(this, stockRepository, nseSecurityDao) }
 
     // User preferences
     val userPreferencesManager: UserPreferencesManager by lazy { UserPreferencesManager(this) }

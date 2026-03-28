@@ -4,7 +4,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "nse_securities", indices = [Index("code")])
+@Entity(tableName = "nse_securities", indices = [Index("code"), Index("name")])
 data class NseSecurity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val code: String,

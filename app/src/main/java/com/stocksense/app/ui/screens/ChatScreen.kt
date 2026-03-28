@@ -16,7 +16,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import com.stocksense.app.R
 import com.stocksense.app.ui.theme.*
 import com.stocksense.app.viewmodel.ChatUiMessage
 import com.stocksense.app.viewmodel.ChatViewModel
@@ -42,7 +45,18 @@ fun ChatScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("AI Chat") },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_app_logo),
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp),
+                            tint = Color.Unspecified
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("senseAI")
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -132,6 +146,13 @@ private fun WelcomeMessage() {
             .padding(vertical = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Icon(
+            painter = painterResource(id = R.drawable.ic_app_logo),
+            contentDescription = "StockSense AI",
+            modifier = Modifier.size(56.dp),
+            tint = Color.Unspecified
+        )
+        Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = "StockSense AI",
             style = MaterialTheme.typography.headlineSmall,
