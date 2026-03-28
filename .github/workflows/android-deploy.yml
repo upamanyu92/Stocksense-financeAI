@@ -43,7 +43,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run unit and lint tests
-        run: ./gradlew --no-daemon test lint
+        run: ./gradlew --no-daemon testDebug lintDebug
 
   assemble:
     name: Assemble Split APKs

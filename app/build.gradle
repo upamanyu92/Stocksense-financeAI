@@ -125,6 +125,7 @@ android {
 
 // Room schema export directory for migration verification.
 kapt {
+    correctErrorTypes = true
     arguments {
         arg("room.schemaLocation", "$projectDir/schemas")
     }
