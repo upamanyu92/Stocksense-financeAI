@@ -12,7 +12,9 @@
 - External integrations:
   - Yahoo Finance HTTP (`YahooFinanceProvider`) for quote/history/metadata.
   - HuggingFace model download (`BitNetModelDownloader`) into `<filesDir>/models`.
+  - `BitNetModelDownloader.downloadWithProgress(url, callback)` — generic URL downloader that reports `(Float, Long, Long)` progress; used by `InitialSetupViewModel`.
   - Optional JNI llama bridge (`LlamaCpp.kt` + `cpp/llama_jni.cpp`) behind runtime checks.
+- First-launch setup: `UserPreferencesManager.isInitialSetupComplete()` / `markInitialSetupComplete()` gated in `MainActivity` before `StockSenseNavGraph`.
 
 ## Core execution paths to preserve
 - Prediction path: `PredictionViewModel.runPrediction()` -> `ModelManager.ensureLoaded()` -> `PredictionEngine.predict()` -> UI warning if model unavailable.
@@ -36,9 +38,11 @@
 
 ## High-value files for fast context
 - App composition: `app/src/main/java/com/stocksense/app/StockSenseApp.kt`, `app/src/main/java/com/stocksense/app/MainActivity.kt`
+- **First-launch setup**: `app/src/main/java/com/stocksense/app/ui/screens/InitialSetupScreen.kt`, `app/src/main/java/com/stocksense/app/viewmodel/InitialSetupViewModel.kt`
 - Navigation/routes: `app/src/main/java/com/stocksense/app/ui/navigation/Navigation.kt`, `app/src/main/java/com/stocksense/app/ui/navigation/Screen.kt`
 - Data + providers: `app/src/main/java/com/stocksense/app/data/repository/StockRepository.kt`, `app/src/main/java/com/stocksense/app/data/remote/providers/YahooFinanceProvider.kt`
 - ML/LLM engines: `app/src/main/java/com/stocksense/app/engine/PredictionEngine.kt`, `app/src/main/java/com/stocksense/app/engine/LLMInsightEngine.kt`, `app/src/main/java/com/stocksense/app/engine/AgenticPipeline.kt`
 - Background jobs + ingestion: `app/src/main/java/com/stocksense/app/workers/*.kt`, `app/src/main/java/com/stocksense/app/ingestion/DataIngestion.kt`
 - Persistence: `app/src/main/java/com/stocksense/app/data/database/AppDatabase.kt`, `app/schemas/`
+- LLM settings UI: `app/src/main/java/com/stocksense/app/ui/screens/LlmSettingsScreen.kt`, `app/src/main/java/com/stocksense/app/viewmodel/LlmSettingsViewModel.kt`
 

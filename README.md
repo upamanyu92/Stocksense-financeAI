@@ -128,15 +128,27 @@ include the release version in the filename before publishing.
 
 ## LLM Model Auto-Download
 
-On first launch, the app schedules a background download of the BitNet 1-bit model:
+On first launch the app presents a full-screen **Initial Setup Wizard** that:
 
-| Device RAM | Quality Mode | Model File | ~Size |
-|-----------|-------------|-----------|-------|
-| < 6 GB | LITE | bitnet-b1.58-2B-4T-TQ1_0.gguf | ~400 MB |
-| 6–8 GB | BALANCED | bitnet-b1.58-2B-4T-TQ2_0.gguf | ~600 MB |
-| ≥ 8 GB | PRO | bitnet-b1.58-2B-4T-Q4_0.gguf | ~1.2 GB |
+1. **Detects device specs** (total RAM, Android version, architecture) and auto-selects the best-matched model.
+2. Shows a **dropdown** with all supported models plus a `⭐ Best for You` recommendation badge.
+3. Each model entry displays **key specs** (size, min RAM, quantization) and a detailed explanation of *why* that model suits the app's finance AI goals.
+4. On confirmation, downloads the selected model with a **live progress bar** (animated shimmer gradient), current **download speed (MB/s)**, and **ETA**.
+5. A pulsing **warning banner** prevents the user from closing the app mid-download.
+6. After download or skip, the `isInitialSetupComplete` flag is persisted in DataStore — the wizard never appears again.
 
-Download requires Wi-Fi and runs via WorkManager with exponential backoff retry.
+### Supported Models
+
+| Model | Params | Quantization | Size | Min RAM | Best for |
+|-------|--------|-------------|------|---------|----------|
+| TinyLlama 1.1B | 1.1B | Q4_K_M | ~0.8 GB | 2 GB | Speed, basic Q&A |
+| Phi-2 2.7B ⭐ | 2.7B | Q4_K_M | ~1.6 GB | 4 GB | Balanced — most devices |
+| Llama-2 7B Chat | 7B | Q4_K_M | ~4.2 GB | 6 GB | Rich analysis |
+| Mistral 7B Instruct v0.2 | 7B | Q4_K_M | ~4.1 GB | 6 GB | Power users / flagships |
+
+Download runs in the foreground during setup (so the user stays on the progress screen). Background sync via `ModelDownloadWorker` (WorkManager) handles subsequent refreshes.
+
+> The wizard is shown only once. To re-trigger it during development, clear app data or uninstall/reinstall.
 
 ## License
 

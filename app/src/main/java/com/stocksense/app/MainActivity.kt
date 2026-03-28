@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelProvider
 import com.stocksense.app.ui.navigation.StockSenseNavGraph
 import com.stocksense.app.ui.screens.BootSplashScreen
+import com.stocksense.app.ui.screens.InitialSetupScreen
 import com.stocksense.app.ui.theme.StockSenseTheme
 import com.stocksense.app.viewmodel.*
 import kotlinx.coroutines.delay
@@ -98,23 +99,37 @@ class MainActivity : ComponentActivity() {
                 LlmSettingsViewModel(app.bitNetDownloader, app.modelManager.llmEngine) as T
         })[LlmSettingsViewModel::class.java]
 
+        val initialSetupViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                InitialSetupViewModel(app.bitNetDownloader, app.userPreferencesManager, app) as T
+        })[InitialSetupViewModel::class.java]
+
         setContent {
             StockSenseTheme {
                 var showBootSplash by rememberSaveable { mutableStateOf(true) }
+                var showInitialSetup by rememberSaveable { mutableStateOf(false) }
+                var setupChecked by rememberSaveable { mutableStateOf(false) }
 
                 LaunchedEffect(Unit) {
                     delay(3000)
                     showBootSplash = false
+                    val isSetupDone = app.userPreferencesManager.isInitialSetupComplete()
+                    showInitialSetup = !isSetupDone
+                    setupChecked = true
                 }
 
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    if (showBootSplash) {
-                        BootSplashScreen()
-                    } else {
-                        StockSenseNavGraph(
+                    when {
+                        showBootSplash || !setupChecked -> BootSplashScreen()
+                        showInitialSetup -> InitialSetupScreen(
+                            viewModel = initialSetupViewModel,
+                            onSetupComplete = { showInitialSetup = false }
+                        )
+                        else -> StockSenseNavGraph(
                             dashboardViewModel = dashboardViewModel,
                             predictionViewModel = predictionViewModel,
                             insightsViewModel = insightsViewModel,
