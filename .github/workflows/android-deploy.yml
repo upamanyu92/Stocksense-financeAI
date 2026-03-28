@@ -129,13 +129,17 @@ jobs:
                       f"Release tags must follow vMAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH, got: {ref_name}"
                   )
               major, minor, patch = map(int, match.groups())
-              version_code = major * 1_000_000 + minor * 10_000 + patch
+              version_code = major * 100_000 + minor * 1_000 + patch
+              if version_code >= 900_000:
+                  raise SystemExit(
+                      f"Release version code {version_code} exceeds the reserved tagged-build range."
+                  )
               version_name = raw_version
               docker_tag = sanitize(ref_name)
           else:
               branch = sanitize(ref_name)
               version_name = f"{base_name}-{branch}.{run_number}"
-              version_code = base_code + run_number
+              version_code = 900_000 + (run_number % 100_000)
               docker_tag = sanitize(version_name)
 
           artifact_name = f"release-apks-{sanitize(version_name)}"
@@ -170,7 +174,7 @@ jobs:
               echo "Unexpected APK filename: $filename" >&2
               exit 1
             fi
-            mv "$apk" "app/build/outputs/apk/release/stocksense-v${RELEASE_VERSION_NAME}-${suffix}.apk"
+            mv "$apk" "app/build/outputs/apk/release/stocksense-${RELEASE_VERSION_NAME}-${suffix}.apk"
           done
 
       - name: List built APKs
