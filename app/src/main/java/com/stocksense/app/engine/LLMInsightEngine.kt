@@ -189,14 +189,15 @@ class LLMInsightEngine(private val context: Context) {
             }
         }
 
-        totalInferenceCount++
         val startTime = System.currentTimeMillis()
 
         val insight = if (modelHandle != 0L && isNativeAvailable) {
             val prompt = buildPrompt(prediction, recentPrices)
             val truncated = truncatePromptIfNeeded(prompt)
             try {
-                LlamaCpp.runInference(contextHandle, truncated, maxTokens = 200)
+                val result = LlamaCpp.runInference(contextHandle, truncated, maxTokens = 200)
+                totalInferenceCount++
+                result
             } catch (e: Exception) {
                 Log.e(TAG, "Inference error: ${e.message}")
                 templateInsight(prediction)
@@ -219,14 +220,15 @@ class LLMInsightEngine(private val context: Context) {
         symbol: String,
         recentPrices: List<Double>
     ): String = withContext(Dispatchers.IO) {
-        totalInferenceCount++
         val startTime = System.currentTimeMillis()
 
         val response = if (modelHandle != 0L && isNativeAvailable) {
             val prompt = buildChatPrompt(userMessage, symbol, recentPrices)
             val truncated = truncatePromptIfNeeded(prompt)
             try {
-                LlamaCpp.runInference(contextHandle, truncated, maxTokens = 300)
+                val result = LlamaCpp.runInference(contextHandle, truncated, maxTokens = 300)
+                totalInferenceCount++
+                result
             } catch (e: Exception) {
                 Log.e(TAG, "Chat inference error: ${e.message}")
                 templateChatResponse(userMessage, symbol)

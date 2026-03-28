@@ -122,6 +122,12 @@ fun InsightsScreen(
 
             // Chat messages
             val listState = rememberLazyListState()
+            val messageCount = uiState.chatMessages.size
+            LaunchedEffect(messageCount) {
+                if (messageCount > 0) {
+                    listState.animateScrollToItem(messageCount - 1)
+                }
+            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier

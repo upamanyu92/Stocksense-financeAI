@@ -35,6 +35,10 @@ class InsightsViewModel(
     private val modelManager: ModelManager
 ) : ViewModel() {
 
+    companion object {
+        private const val MAX_CHAT_HISTORY = 50
+    }
+
     private val _uiState = MutableStateFlow(InsightsUiState())
     val uiState: StateFlow<InsightsUiState> = _uiState.asStateFlow()
 
@@ -72,7 +76,7 @@ class InsightsViewModel(
     fun sendChatMessage(userMessage: String) {
         if (userMessage.isBlank()) return
         val symbol = _uiState.value.symbol
-        val updatedMessages = _uiState.value.chatMessages + ChatMessage(userMessage, isUser = true)
+        val updatedMessages = (_uiState.value.chatMessages + ChatMessage(userMessage, isUser = true)).takeLast(MAX_CHAT_HISTORY)
         _uiState.update { it.copy(chatMessages = updatedMessages, isChatLoading = true) }
 
         viewModelScope.launch {
@@ -83,7 +87,7 @@ class InsightsViewModel(
                 val response = modelManager.llmEngine.chat(userMessage, symbol, prices)
                 modelManager.markUsed()
                 val metrics = modelManager.llmEngine.getMetrics()
-                val withResponse = _uiState.value.chatMessages + ChatMessage(response, isUser = false)
+                val withResponse = (_uiState.value.chatMessages + ChatMessage(response, isUser = false)).takeLast(MAX_CHAT_HISTORY)
                 _uiState.update {
                     it.copy(
                         chatMessages = withResponse,
@@ -93,7 +97,7 @@ class InsightsViewModel(
                 }
             } catch (e: Exception) {
                 val errorMsg = ChatMessage("Sorry, I couldn't process that: ${e.message}", isUser = false)
-                val withError = _uiState.value.chatMessages + errorMsg
+                val withError = (_uiState.value.chatMessages + errorMsg).takeLast(MAX_CHAT_HISTORY)
                 _uiState.update { it.copy(chatMessages = withError, isChatLoading = false) }
             }
         }

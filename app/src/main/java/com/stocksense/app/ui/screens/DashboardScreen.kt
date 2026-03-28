@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowOutward
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -111,7 +112,7 @@ private fun HeaderBar(
             }
             IconButton(onClick = onProfileClick) {
                 Icon(
-                    Icons.Default.Search,
+                    Icons.Default.Person,
                     contentDescription = "Profile",
                     tint = MutedGrey
                 )
