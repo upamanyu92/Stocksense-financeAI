@@ -116,14 +116,16 @@ jobs:
           ref = os.environ.get("GITHUB_REF", "")
           ref_name = os.environ.get("GITHUB_REF_NAME", "")
           run_number = int(os.environ.get("GITHUB_RUN_NUMBER", "1"))
+          branch_build_base = 900_000
+          branch_build_max_run = 99_999
 
           def sanitize(value: str) -> str:
               sanitized = re.sub(r"[^0-9A-Za-z._-]+", "-", value).strip("-").lower()
               return sanitized or "build"
 
           if ref.startswith("refs/tags/"):
-              raw_version = ref_name[1:] if ref_name.startswith("v") else ref_name
-              match = re.match(r"^(\d+)\.(\d+)\.(\d+)$", raw_version)
+              semver_string = ref_name[1:] if ref_name.startswith("v") else ref_name
+              match = re.match(r"^(\d+)\.(\d+)\.(\d+)$", semver_string)
               if not match:
                   raise SystemExit(
                       f"Release tags must follow vMAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH, got: {ref_name}"
@@ -134,18 +136,18 @@ jobs:
                   raise SystemExit(
                       f"Release version code {version_code} exceeds the reserved tagged-build range."
                   )
-              version_name = raw_version
+              version_name = semver_string
               docker_tag = sanitize(ref_name)
           else:
               branch = sanitize(ref_name)
               version_name = f"{base_name}-{branch}.{run_number}"
               # Reserve 900000-999999 for non-tagged branch builds so they do not
               # overlap with tagged release version codes.
-              if run_number >= 100_000:
+              if run_number > branch_build_max_run:
                   raise SystemExit(
                       f"Run number {run_number} exceeds the reserved branch-build version-code range."
                   )
-              version_code = 900_000 + run_number
+              version_code = branch_build_base + run_number
               docker_tag = sanitize(version_name)
 
           artifact_name = f"release-apks-{sanitize(version_name)}"
@@ -175,7 +177,7 @@ jobs:
           # append -unsigned depending on signing configuration.
           for apk in app/build/outputs/apk/release/*.apk; do
             filename="$(basename "$apk")"
-            if [[ "$filename" =~ ^app-(.+)-release(-unsigned)?\.apk$ ]]; then
+            if [[ "$filename" =~ ^app-(.+?)-release(-unsigned)?\.apk$ ]]; then
               suffix="${BASH_REMATCH[1]}"
             else
               echo "Unexpected APK filename: $filename" >&2
