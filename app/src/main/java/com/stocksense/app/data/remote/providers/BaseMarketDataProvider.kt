@@ -16,7 +16,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
 
-internal abstract class BaseMarketDataProvider : MarketDataProvider {
+abstract class BaseMarketDataProvider : MarketDataProvider {
     protected val json = Json { ignoreUnknownKeys = true }
 
     private val client = OkHttpClient.Builder()
@@ -59,7 +59,11 @@ internal abstract class BaseMarketDataProvider : MarketDataProvider {
     protected fun JsonElement.objectOrArrayAt(vararg keys: String): JsonElement? {
         var current: JsonElement = this
         for (key in keys) {
-            current = (current as? JsonObject)?.get(key) ?: return null
+            current = when (current) {
+                is JsonObject -> current[key]
+                is JsonArray -> key.toIntOrNull()?.let(current::getOrNull)
+                else -> null
+            } ?: return null
         }
         return current
     }
@@ -79,7 +83,7 @@ internal abstract class BaseMarketDataProvider : MarketDataProvider {
             (this[key] as? JsonPrimitive)?.longOrNull
         }
 
-    protected fun JsonObject.firstObject(vararg keys: String): JsonObject? {
+    protected fun JsonElement.firstObject(vararg keys: String): JsonObject? {
         val element = objectOrArrayAt(*keys) ?: return null
         return when (element) {
             is JsonObject -> element
