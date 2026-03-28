@@ -103,6 +103,11 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * Best-effort symbol extraction from user text.
+     * Matches against common NSE symbols; a production implementation would
+     * query the NseSecurity table for dynamic lookup.
+     */
     private fun extractSymbol(text: String): String? {
         val upper = text.uppercase()
         val knownPatterns = listOf(

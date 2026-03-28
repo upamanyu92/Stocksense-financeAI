@@ -223,6 +223,7 @@ private fun RecordTradeDialog(
     var quantity by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
     var tradeType by remember { mutableStateOf(TradeType.BUY) }
+    var validationError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -262,7 +263,7 @@ private fun RecordTradeDialog(
                 }
                 OutlinedTextField(
                     value = quantity,
-                    onValueChange = { quantity = it },
+                    onValueChange = { quantity = it; validationError = null },
                     label = { Text("Quantity") },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -272,7 +273,7 @@ private fun RecordTradeDialog(
                 )
                 OutlinedTextField(
                     value = price,
-                    onValueChange = { price = it },
+                    onValueChange = { price = it; validationError = null },
                     label = { Text("Price per share (₹)") },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -280,14 +281,24 @@ private fun RecordTradeDialog(
                         cursorColor = NeonGreen
                     )
                 )
+                validationError?.let { error ->
+                    Text(
+                        text = error,
+                        color = SoftRed,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    val qty = quantity.toDoubleOrNull() ?: return@TextButton
-                    val prc = price.toDoubleOrNull() ?: return@TextButton
-                    if (symbol.isNotBlank()) onConfirm(symbol, tradeType, qty, prc)
+                    when {
+                        symbol.isBlank() -> validationError = "Symbol is required"
+                        quantity.toDoubleOrNull() == null -> validationError = "Enter a valid quantity"
+                        price.toDoubleOrNull() == null -> validationError = "Enter a valid price"
+                        else -> onConfirm(symbol, tradeType, quantity.toDouble(), price.toDouble())
+                    }
                 }
             ) { Text("Submit", color = NeonGreen) }
         },

@@ -28,7 +28,7 @@ class WatchlistViewModel(
         observeWatchlist()
     }
 
-    fun observeWatchlist() {
+    private fun observeWatchlist() {
         viewModelScope.launch {
             watchlistDao.getAll()
                 .onStart { _uiState.update { it.copy(isLoading = true) } }
