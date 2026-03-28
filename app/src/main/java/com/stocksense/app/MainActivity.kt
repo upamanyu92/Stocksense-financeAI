@@ -19,6 +19,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val authViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                AuthViewModel(app.userPreferencesManager) as T
+        })[AuthViewModel::class.java]
+
         val dashboardViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
@@ -67,6 +73,18 @@ class MainActivity : ComponentActivity() {
                 ChatViewModel(app.chatMessageDao, app.modelManager.llmEngine, app.stockRepository) as T
         })[ChatViewModel::class.java]
 
+        val searchViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                SearchViewModel(app.nseSecurityDao, app.stockRepository) as T
+        })[SearchViewModel::class.java]
+
+        val llmSettingsViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                LlmSettingsViewModel(app.bitNetDownloader, app.modelManager.llmEngine, applicationContext) as T
+        })[LlmSettingsViewModel::class.java]
+
         setContent {
             StockSenseTheme {
                 Surface(
@@ -81,7 +99,10 @@ class MainActivity : ComponentActivity() {
                         profileViewModel = profileViewModel,
                         watchlistViewModel = watchlistViewModel,
                         portfolioViewModel = portfolioViewModel,
-                        chatViewModel = chatViewModel
+                        chatViewModel = chatViewModel,
+                        authViewModel = authViewModel,
+                        searchViewModel = searchViewModel,
+                        llmSettingsViewModel = llmSettingsViewModel
                     )
                 }
             }

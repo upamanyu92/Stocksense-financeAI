@@ -5,6 +5,8 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.graphics.vector.ImageVector
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
+    object Login : Screen("login", "Login", Icons.Default.Lock)
+    object Register : Screen("register", "Register", Icons.Default.PersonAdd)
     object Dashboard : Screen("dashboard", "Dashboard", Icons.Default.Home)
     object Markets : Screen("markets", "Markets", Icons.Default.ShowChart)
     object Watchlist : Screen("watchlist", "Watchlist", Icons.Default.Star)
@@ -16,14 +18,18 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
     }
     object Alerts : Screen("alerts", "Alerts", Icons.Default.NotificationsActive)
     object Portfolio : Screen("portfolio", "Portfolio", Icons.Default.Work)
-    object Chat : Screen("chat", "Chat", Icons.Default.Chat)
+    object Chat : Screen("chat", "AI Chat", Icons.Default.Chat)
     object Profile : Screen("profile", "Profile", Icons.Default.Person)
+    object LlmSettings : Screen("llm_settings", "LLM Settings", Icons.Default.Settings)
+    object SearchResults : Screen("search_results/{query}", "Search", Icons.Default.Search) {
+        fun createRoute(query: String) = "search_results/$query"
+    }
 }
 
 val bottomNavItems = listOf(
     Screen.Dashboard,
     Screen.Watchlist,
-    Screen.Portfolio,
+    Screen.Chat,
     Screen.Alerts,
     Screen.Profile
 )

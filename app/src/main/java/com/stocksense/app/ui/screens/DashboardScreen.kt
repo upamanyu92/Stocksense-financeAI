@@ -1,5 +1,6 @@
 package com.stocksense.app.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -22,26 +23,45 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.stocksense.app.R
 import com.stocksense.app.data.model.*
+import com.stocksense.app.ui.components.SearchDropdown
 import com.stocksense.app.ui.theme.*
 import com.stocksense.app.viewmodel.DashboardViewModel
+import com.stocksense.app.viewmodel.SearchViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel,
+    searchViewModel: SearchViewModel,
     onStockClick: (String) -> Unit,
-    onProfileClick: () -> Unit = {}
+    onProfileClick: () -> Unit = {},
+    onViewAllSearchResults: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val searchState by searchViewModel.uiState.collectAsState()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("StockSense", fontWeight = FontWeight.SemiBold) },
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.stocksense_logo),
+                            contentDescription = "StockSense Logo",
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Text("StockSense", fontWeight = FontWeight.SemiBold)
+                    }
+                },
                 actions = {
                     IconButton(onClick = { /* notifications */ }) {
                         Icon(Icons.Default.Notifications, contentDescription = "Notifications")
@@ -63,10 +83,28 @@ fun DashboardScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             HeaderBar(
-                searchQuery = uiState.searchQuery,
-                onSearchQueryChange = { viewModel.updateSearchQuery(it) },
+                searchQuery = searchState.query,
+                onSearchQueryChange = { query ->
+                    searchViewModel.updateQuery(query)
+                    viewModel.updateSearchQuery(query)
+                },
+                onClearSearch = {
+                    searchViewModel.clearSearch()
+                    viewModel.updateSearchQuery("")
+                },
                 onProfileClick = onProfileClick
             )
+
+            // Search dropdown overlay
+            if (searchState.query.isNotBlank() && (searchState.results.isNotEmpty() || searchState.isSearching)) {
+                SearchDropdown(
+                    results = searchState.results,
+                    totalCount = searchState.totalCount,
+                    isSearching = searchState.isSearching,
+                    onResultClick = { result -> onStockClick(result.code) },
+                    onViewAllClick = { onViewAllSearchResults(searchState.query) }
+                )
+            }
 
             uiState.portfolio?.let {
                 HeroPortfolioCard(snapshot = it)
@@ -99,6 +137,7 @@ fun DashboardScreen(
 private fun HeaderBar(
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
+    onClearSearch: () -> Unit,
     onProfileClick: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -126,7 +165,7 @@ private fun HeaderBar(
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MutedGrey) },
             trailingIcon = {
                 if (searchQuery.isNotBlank()) {
-                    IconButton(onClick = { onSearchQueryChange("") }) {
+                    IconButton(onClick = onClearSearch) {
                         Icon(Icons.Default.Clear, contentDescription = "Clear search", tint = MutedGrey)
                     }
                 }
