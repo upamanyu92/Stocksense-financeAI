@@ -83,7 +83,7 @@ fun WatchlistScreen(
                     totalCount = searchState.totalCount,
                     isSearching = searchState.isSearching,
                     onResultClick = { result ->
-                        viewModel.addToWatchlist(result.code)
+                        viewModel.addToWatchlist(result.symbol)
                         searchViewModel.clearSearch()
                     },
                     onViewAllClick = { /* results are added inline */ },
@@ -118,6 +118,7 @@ fun WatchlistScreen(
                             WatchlistRow(
                                 item = item,
                                 stockData = uiState.stocks[item.symbol],
+                                displayName = uiState.displayNames[item.symbol],
                                 onClick = { onStockClick(item.symbol) },
                                 onRemove = { viewModel.removeFromWatchlist(item.symbol) }
                             )
@@ -133,6 +134,7 @@ fun WatchlistScreen(
 private fun WatchlistRow(
     item: WatchlistItem,
     stockData: StockData?,
+    displayName: String?,
     onClick: () -> Unit,
     onRemove: () -> Unit
 ) {
@@ -150,20 +152,20 @@ private fun WatchlistRow(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = item.symbol,
+                    text = displayName ?: stockData?.name ?: item.symbol,
                     style = MaterialTheme.typography.titleMedium,
                     color = ElectricBlue
                 )
-                if (stockData != null) {
+                if (displayName != null || stockData != null) {
                     Text(
-                        text = stockData.name,
+                        text = item.symbol,
                         style = MaterialTheme.typography.bodySmall,
                         color = MutedGrey
                     )
                 }
             }
 
-            if (stockData != null) {
+            if (stockData != null && (stockData.currentPrice != 0.0 || stockData.previousClose != 0.0)) {
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = "₹${"%.2f".format(stockData.currentPrice)}",
@@ -180,7 +182,7 @@ private fun WatchlistRow(
                 }
             } else {
                 Text(
-                    text = "Loading…",
+                    text = "Syncing…",
                     style = MaterialTheme.typography.bodySmall,
                     color = MutedGrey
                 )

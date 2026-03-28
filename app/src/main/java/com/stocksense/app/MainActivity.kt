@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
         val predictionViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
-                PredictionViewModel(app.stockRepository, app.modelManager) as T
+                PredictionViewModel(app.stockRepository, app.modelManager, app.nseSecurityDao) as T
         })[PredictionViewModel::class.java]
 
         val insightsViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
@@ -65,7 +65,7 @@ class MainActivity : ComponentActivity() {
         val watchlistViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
-                WatchlistViewModel(app.watchlistDao, app.stockRepository) as T
+                WatchlistViewModel(app.watchlistDao, app.stockRepository, app.nseSecurityDao) as T
         })[WatchlistViewModel::class.java]
 
         val portfolioViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {

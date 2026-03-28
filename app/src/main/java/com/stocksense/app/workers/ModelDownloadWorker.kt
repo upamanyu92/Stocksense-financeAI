@@ -22,7 +22,7 @@ private const val UNIQUE_WORK_NAME = "bitnet_model_download"
  * background on first app launch.
  *
  * ### Behaviour
- * - Only runs when the device has an unmetered network connection.
+ * - Only runs when the device has a network connection.
  * - Automatically retries with exponential back-off on transient failures.
  * - Uses [ExistingWorkPolicy.KEEP] so it is a no-op once the model is present.
  *
@@ -82,7 +82,7 @@ class ModelDownloadWorker(
          */
         fun schedule(context: Context) {
             val constraints = Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.UNMETERED)
+                .setRequiredNetworkType(NetworkType.CONNECTED)
                 .setRequiresStorageNotLow(true)
                 .build()
 

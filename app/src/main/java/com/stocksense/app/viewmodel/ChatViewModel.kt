@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.stocksense.app.data.database.dao.ChatMessageDao
 import com.stocksense.app.data.database.entities.ChatMessage
 import com.stocksense.app.data.repository.StockRepository
+import com.stocksense.app.engine.AgenticMetrics
 import com.stocksense.app.engine.LLMInsightEngine
+import com.stocksense.app.engine.LlmStatus
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -18,6 +20,9 @@ data class ChatUiMessage(
 data class ChatUiState(
     val messages: List<ChatUiMessage> = emptyList(),
     val isLoading: Boolean = false,
+    val llmStatus: LlmStatus = LlmStatus.NATIVE_UNAVAILABLE,
+    val llmMetrics: AgenticMetrics = AgenticMetrics(),
+    val isCheckingAgent: Boolean = false,
     val error: String? = null
 )
 
@@ -32,6 +37,7 @@ class ChatViewModel(
 
     init {
         loadHistory()
+        refreshAgentStatus()
     }
 
     fun loadHistory() {
@@ -65,6 +71,8 @@ class ChatViewModel(
 
         viewModelScope.launch {
             try {
+                llmEngine.loadModel()
+                val metrics = llmEngine.getMetrics()
                 val symbol = extractSymbol(text)
                 val recentPrices = if (symbol != null) {
                     stockRepository.getRecentHistory(symbol, 10).map { it.close }
@@ -72,17 +80,25 @@ class ChatViewModel(
                     emptyList()
                 }
 
-                val aiResponseText = llmEngine.chat(
-                    userMessage = text,
-                    symbol = symbol ?: "GENERAL",
-                    recentPrices = recentPrices
-                )
+                val aiResponseText = if (metrics.status == LlmStatus.READY) {
+                    llmEngine.chat(
+                        userMessage = text,
+                        symbol = symbol ?: "GENERAL",
+                        recentPrices = recentPrices
+                    )
+                } else {
+                    llmUnavailableMessage(metrics.status, metrics.modelFileName)
+                }
+
+                val updatedMetrics = llmEngine.getMetrics()
 
                 val aiMessage = ChatUiMessage(text = aiResponseText, isUser = false)
                 _uiState.update {
                     it.copy(
                         messages = it.messages + aiMessage,
-                        isLoading = false
+                        isLoading = false,
+                        llmStatus = updatedMetrics.status,
+                        llmMetrics = updatedMetrics
                     )
                 }
 
@@ -103,6 +119,33 @@ class ChatViewModel(
         }
     }
 
+    fun refreshAgentStatus() {
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(isCheckingAgent = true) }
+                llmEngine.loadModel()
+                val metrics = llmEngine.getMetrics()
+                _uiState.update {
+                    it.copy(
+                        llmStatus = metrics.status,
+                        llmMetrics = metrics,
+                        isCheckingAgent = false
+                    )
+                }
+            } catch (e: Exception) {
+                val metrics = llmEngine.getMetrics()
+                _uiState.update {
+                    it.copy(
+                        llmStatus = metrics.status,
+                        llmMetrics = metrics,
+                        isCheckingAgent = false,
+                        error = e.message
+                    )
+                }
+            }
+        }
+    }
+
     /**
      * Best-effort symbol extraction from user text.
      * Matches against common NSE symbols; a production implementation would
@@ -116,5 +159,14 @@ class ChatViewModel(
             "ITC", "AXISBANK", "BHARTIARTL", "MARUTI", "ADANIENT"
         )
         return knownPatterns.firstOrNull { upper.contains(it) }
+    }
+
+    private fun llmUnavailableMessage(status: LlmStatus, modelFileName: String): String = when (status) {
+        LlmStatus.READY -> ""
+        LlmStatus.LOADING -> "The local agent is still loading. Try again in a few seconds."
+        LlmStatus.MODEL_NOT_DOWNLOADED -> "The local model (${modelFileName.ifBlank { "selected model" }}) is not downloaded yet."
+        LlmStatus.NATIVE_UNAVAILABLE -> "This build does not include the native llama runtime, so the on-device agent is unavailable."
+        LlmStatus.LOAD_FAILED -> "The downloaded model was found, but it could not be loaded on this device."
+        LlmStatus.TEMPLATE_FALLBACK -> "The app is still running in template fallback mode."
     }
 }

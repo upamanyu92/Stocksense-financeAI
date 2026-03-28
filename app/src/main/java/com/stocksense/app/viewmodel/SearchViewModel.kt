@@ -78,8 +78,14 @@ class SearchViewModel(
                     nse.symbol.contains(query, ignoreCase = true) -> "Symbol"
                     else -> "Match"
                 }
+                val resolvedSymbol = resolveResultSymbol(
+                    fallbackSymbol = nse.code,
+                    nseSymbol = nse.symbol,
+                    displayName = nse.name
+                )
                 SearchResult(
                     displayName = nse.name,
+                    symbol = resolvedSymbol,
                     code = nse.code,
                     type = type,
                     matchSource = matchSource
@@ -98,6 +104,7 @@ class SearchViewModel(
                         allResults.add(
                             SearchResult(
                                 displayName = stock.name,
+                                symbol = stock.symbol,
                                 code = stock.symbol,
                                 type = SearchResultType.STOCK_SYMBOL,
                                 matchSource = "Stock Data"
@@ -137,6 +144,11 @@ class SearchViewModel(
                 allResults.addAll(nseResults.map { nse ->
                     SearchResult(
                         displayName = nse.name,
+                        symbol = resolveResultSymbol(
+                            fallbackSymbol = nse.code,
+                            nseSymbol = nse.symbol,
+                            displayName = nse.name
+                        ),
                         code = nse.code,
                         type = classifySecurityType(nse.name, nse.code),
                         matchSource = when {
@@ -160,5 +172,23 @@ class SearchViewModel(
             upper.contains("FUND") || upper.contains("MUTUAL") -> SearchResultType.OTHER
             else -> SearchResultType.COMPANY
         }
+    }
+
+    private suspend fun resolveResultSymbol(
+        fallbackSymbol: String,
+        nseSymbol: String,
+        displayName: String
+    ): String {
+        if (nseSymbol.isNotBlank()) {
+            return nseSymbol
+        }
+
+        val localMatch = stockRepository.searchStocks(displayName).first()
+            .firstOrNull { stock ->
+                stock.name.equals(displayName, ignoreCase = true) ||
+                    stock.symbol.equals(fallbackSymbol, ignoreCase = true)
+            }
+
+        return localMatch?.symbol ?: fallbackSymbol
     }
 }

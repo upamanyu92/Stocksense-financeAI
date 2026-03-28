@@ -22,9 +22,14 @@ data class ModelOption(
 data class LlmSettingsUiState(
     val status: LlmStatus = LlmStatus.NATIVE_UNAVAILABLE,
     val currentModelName: String = "",
+    val isNativeAvailable: Boolean = false,
+    val isModelDownloaded: Boolean = false,
+    val lastInferenceTimeMs: Long = 0L,
     val isDownloading: Boolean = false,
     val downloadProgress: Float = 0f,
     val isImporting: Boolean = false,
+    val isRunningLiveCheck: Boolean = false,
+    val liveCheckMessage: String? = null,
     val importError: String? = null,
     val error: String? = null,
     val availableModels: List<ModelOption> = defaultModels()
@@ -54,7 +59,10 @@ class LlmSettingsViewModel(
         _uiState.update {
             it.copy(
                 status = metrics.status,
-                currentModelName = metrics.modelFileName
+                currentModelName = metrics.modelFileName,
+                isNativeAvailable = metrics.isNativeAvailable,
+                isModelDownloaded = metrics.isModelDownloaded,
+                lastInferenceTimeMs = metrics.lastInferenceTimeMs
             )
         }
     }
@@ -125,6 +133,7 @@ class LlmSettingsViewModel(
                     return@launch
                 }
 
+                llmEngine.loadModel()
                 refreshStatus()
                 _uiState.update { it.copy(isImporting = false) }
             } catch (e: Exception) {
@@ -145,6 +154,34 @@ class LlmSettingsViewModel(
         viewModelScope.launch {
             llmEngine.loadModel()
             refreshStatus()
+        }
+    }
+
+    fun runLiveCheck() {
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(isRunningLiveCheck = true, liveCheckMessage = null, error = null) }
+                val ok = llmEngine.runLiveCheck()
+                refreshStatus()
+                _uiState.update {
+                    it.copy(
+                        isRunningLiveCheck = false,
+                        liveCheckMessage = if (ok) {
+                            "Agent responded successfully."
+                        } else {
+                            "Agent is not live yet. Check runtime and model status."
+                        }
+                    )
+                }
+            } catch (e: Exception) {
+                refreshStatus()
+                _uiState.update {
+                    it.copy(
+                        isRunningLiveCheck = false,
+                        error = e.message
+                    )
+                }
+            }
         }
     }
 }

@@ -2,6 +2,7 @@ package com.stocksense.app.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.stocksense.app.data.database.dao.NseSecurityDao
 import com.stocksense.app.data.model.HistoryPoint
 import com.stocksense.app.data.model.PredictionResult
 import com.stocksense.app.data.repository.StockRepository
@@ -12,6 +13,7 @@ import kotlinx.coroutines.launch
 
 data class PredictionUiState(
     val symbol: String = "",
+    val displayName: String = "",
     val history: List<HistoryPoint> = emptyList(),
     val prediction: PredictionResult? = null,
     val isLoading: Boolean = false,
@@ -21,7 +23,8 @@ data class PredictionUiState(
 
 class PredictionViewModel(
     private val stockRepository: StockRepository,
-    private val modelManager: ModelManager
+    private val modelManager: ModelManager,
+    private val nseSecurityDao: NseSecurityDao
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PredictionUiState())
@@ -30,8 +33,17 @@ class PredictionViewModel(
     fun loadStock(symbol: String) {
         _uiState.update { it.copy(symbol = symbol, isLoading = true, error = null, warning = null) }
         viewModelScope.launch {
+            val stock = stockRepository.getStock(symbol)
+            val displayName = stock?.name ?: nseSecurityDao.getByCode(symbol)?.name.orEmpty()
             val history = stockRepository.getRecentHistory(symbol, 60)
-            _uiState.update { it.copy(history = history, isLoading = false) }
+            _uiState.update {
+                it.copy(
+                    symbol = symbol,
+                    displayName = displayName,
+                    history = history,
+                    isLoading = false
+                )
+            }
         }
     }
 

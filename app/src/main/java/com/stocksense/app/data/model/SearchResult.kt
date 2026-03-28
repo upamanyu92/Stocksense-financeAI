@@ -5,6 +5,7 @@ package com.stocksense.app.data.model
  */
 data class SearchResult(
     val displayName: String,
+    val symbol: String,
     val code: String,
     val type: SearchResultType,
     val matchSource: String

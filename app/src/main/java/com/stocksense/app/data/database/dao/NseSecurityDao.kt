@@ -8,6 +8,9 @@ interface NseSecurityDao {
     @Query("SELECT * FROM nse_securities WHERE name LIKE '%' || :query || '%' OR code LIKE '%' || :query || '%' OR symbol LIKE '%' || :query || '%' LIMIT :limit")
     suspend fun search(query: String, limit: Int = 100): List<NseSecurity>
 
+    @Query("SELECT * FROM nse_securities WHERE code = :code LIMIT 1")
+    suspend fun getByCode(code: String): NseSecurity?
+
     @Query("SELECT * FROM nse_securities")
     suspend fun getAll(): List<NseSecurity>
 

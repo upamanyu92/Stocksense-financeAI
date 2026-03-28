@@ -2,6 +2,7 @@ package com.stocksense.app.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.stocksense.app.data.database.dao.NseSecurityDao
 import com.stocksense.app.data.database.dao.WatchlistDao
 import com.stocksense.app.data.database.entities.WatchlistItem
 import com.stocksense.app.data.model.StockData
@@ -12,13 +13,15 @@ import kotlinx.coroutines.launch
 data class WatchlistUiState(
     val watchlistItems: List<WatchlistItem> = emptyList(),
     val stocks: Map<String, StockData> = emptyMap(),
+    val displayNames: Map<String, String> = emptyMap(),
     val isLoading: Boolean = true,
     val error: String? = null
 )
 
 class WatchlistViewModel(
     private val watchlistDao: WatchlistDao,
-    private val stockRepository: StockRepository
+    private val stockRepository: StockRepository,
+    private val nseSecurityDao: NseSecurityDao
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(WatchlistUiState())
@@ -52,6 +55,12 @@ class WatchlistViewModel(
                     displayOrder = order
                 )
             )
+            refreshStockData(
+                _uiState.value.watchlistItems + WatchlistItem(
+                    symbol = symbol.uppercase(),
+                    displayOrder = order
+                )
+            )
         }
     }
 
@@ -64,10 +73,18 @@ class WatchlistViewModel(
     private fun refreshStockData(items: List<WatchlistItem>) {
         viewModelScope.launch {
             val stockMap = mutableMapOf<String, StockData>()
+            val displayNameMap = mutableMapOf<String, String>()
             for (item in items) {
-                stockRepository.getStock(item.symbol)?.let { stockMap[item.symbol] = it }
+                stockRepository.getStock(item.symbol)?.let { stock ->
+                    stockMap[item.symbol] = stock
+                    displayNameMap[item.symbol] = stock.name
+                } ?: run {
+                    nseSecurityDao.getByCode(item.symbol)?.name?.let { displayName ->
+                        displayNameMap[item.symbol] = displayName
+                    }
+                }
             }
-            _uiState.update { it.copy(stocks = stockMap) }
+            _uiState.update { it.copy(stocks = stockMap, displayNames = displayNameMap) }
         }
     }
 }

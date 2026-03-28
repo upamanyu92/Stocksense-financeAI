@@ -109,7 +109,7 @@ class LLMInsightEngine(private val context: Context) {
     /** Get current agentic metrics snapshot. */
     fun getMetrics(): AgenticMetrics {
         val mode = currentMode ?: autoSelectMode()
-        val modelFile = downloader.modelFileFor(mode)
+        val modelFile = preferredModelFile(mode)
         return AgenticMetrics(
             status = status,
             qualityMode = mode,
@@ -134,10 +134,10 @@ class LLMInsightEngine(private val context: Context) {
         currentMode = mode
         if (!isNativeAvailable) {
             Log.i(TAG, "Native library not available – using template fallback")
-            status = LlmStatus.TEMPLATE_FALLBACK
+            status = LlmStatus.NATIVE_UNAVAILABLE
             return@withContext
         }
-        val modelFile = downloader.modelFileFor(mode)
+        val modelFile = preferredModelFile(mode)
         if (!modelFile.exists()) {
             Log.w(TAG, "Model file not found: ${modelFile.absolutePath} – using fallback")
             status = LlmStatus.MODEL_NOT_DOWNLOADED
@@ -147,11 +147,19 @@ class LLMInsightEngine(private val context: Context) {
         try {
             modelHandle = LlamaCpp.loadModel(modelFile.absolutePath, nGpuLayers(mode))
             contextHandle = LlamaCpp.createContext(modelHandle, contextSizeFor(mode))
+            if (modelHandle == 0L || contextHandle == 0L) {
+                modelHandle = 0L
+                contextHandle = 0L
+                status = LlmStatus.LOAD_FAILED
+                Log.e(TAG, "Model load returned an invalid native handle")
+                return@withContext
+            }
             status = LlmStatus.READY
             Log.i(TAG, "BitNet LLM loaded: ${modelFile.name} (mode=$mode)")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load LLM: ${e.message}")
             modelHandle = 0L
+            contextHandle = 0L
             status = LlmStatus.LOAD_FAILED
         }
     }
@@ -200,6 +208,7 @@ class LLMInsightEngine(private val context: Context) {
                 result
             } catch (e: Exception) {
                 Log.e(TAG, "Inference error: ${e.message}")
+                status = LlmStatus.TEMPLATE_FALLBACK
                 templateInsight(prediction)
             }
         } else {
@@ -231,6 +240,7 @@ class LLMInsightEngine(private val context: Context) {
                 result
             } catch (e: Exception) {
                 Log.e(TAG, "Chat inference error: ${e.message}")
+                status = LlmStatus.TEMPLATE_FALLBACK
                 templateChatResponse(userMessage, symbol)
             }
         } else {
@@ -246,7 +256,28 @@ class LLMInsightEngine(private val context: Context) {
     fun currentQualityMode(): QualityMode = currentMode ?: autoSelectMode()
 
     /** @return true if the BitNet model file for the auto-selected mode is on disk. */
-    fun isModelDownloaded(): Boolean = downloader.isModelAvailable(autoSelectMode())
+    fun isModelDownloaded(): Boolean = preferredModelFile(autoSelectMode()).exists()
+
+    suspend fun runLiveCheck(mode: QualityMode = currentQualityMode()): Boolean = withContext(Dispatchers.IO) {
+        loadModel(mode)
+        if (status != LlmStatus.READY || contextHandle == 0L) {
+            return@withContext false
+        }
+
+        val startTime = System.currentTimeMillis()
+        return@withContext try {
+            val output = LlamaCpp.runInference(contextHandle, "Reply with OK only.", maxTokens = 8).trim()
+            lastInferenceTimeMs = System.currentTimeMillis() - startTime
+            totalInferenceCount++
+            val isHealthy = output.isNotBlank()
+            status = if (isHealthy) LlmStatus.READY else LlmStatus.LOAD_FAILED
+            isHealthy
+        } catch (e: Exception) {
+            Log.e(TAG, "Live check failed: ${e.message}")
+            status = LlmStatus.LOAD_FAILED
+            false
+        }
+    }
 
     // ---------- Private helpers ----------
 
@@ -345,6 +376,16 @@ Answer:""".trimIndent()
             else ->
                 "Regarding $symbol: I can help with price analysis, predictions, risk assessment, and market insights. The local LLM agent provides deeper analysis when the BitNet model is loaded."
         }
+    }
+
+    private fun preferredModelFile(mode: QualityMode): File {
+        val bundled = downloader.modelFileFor(mode)
+        if (bundled.exists()) {
+            return bundled
+        }
+
+        val imported = File(downloader.modelsDir, "imported_model.gguf")
+        return if (imported.exists()) imported else bundled
     }
 
     private data class CachedInsight(val text: String, val timestamp: Long)

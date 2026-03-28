@@ -32,7 +32,7 @@ fun PredictionScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("$symbol Prediction") },
+                title = { Text("${uiState.displayName.ifBlank { symbol }} Prediction") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -94,8 +94,9 @@ fun PredictionScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                val activeSymbol = uiState.symbol.ifBlank { symbol }
                 Button(
-                    onClick = { viewModel.runPrediction(symbol) },
+                    onClick = { viewModel.runPrediction(activeSymbol) },
                     enabled = !uiState.isLoading,
                     modifier = Modifier.weight(1f)
                 ) {
