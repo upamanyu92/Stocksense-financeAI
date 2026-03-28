@@ -205,5 +205,4 @@ class SearchViewModel(
                 put(stock.symbol.uppercase(), stock.symbol)
             }
         }
-    }
 }
