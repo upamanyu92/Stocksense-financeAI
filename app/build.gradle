@@ -14,6 +14,30 @@ if (hasReleaseKeystore) {
             .every { keystoreProperties[it] }
 }
 
+def versionPropertiesFile = rootProject.file("version.properties")
+def versionProperties = new Properties()
+if (versionPropertiesFile.exists()) {
+    versionProperties.load(new FileInputStream(versionPropertiesFile))
+}
+
+def parseVersionCode = { value, fallback ->
+    try {
+        return Integer.parseInt(value?.toString() ?: "")
+    } catch (NumberFormatException ignored) {
+        return fallback
+    }
+}
+
+def appVersionName = (
+        project.findProperty("stocksense.versionName")
+                ?: versionProperties.getProperty("VERSION_NAME")
+                ?: "1.0.0"
+).toString()
+def appVersionCode = parseVersionCode(
+        project.findProperty("stocksense.versionCode"),
+        parseVersionCode(versionProperties.getProperty("VERSION_CODE"), 1)
+)
+
 // Per-ABI version code multiplier so Play Store can distinguish split APKs.
 ext.abiCodes = ['arm64-v8a': 1, 'x86_64': 2]
 
@@ -26,8 +50,8 @@ android {
         // Android 13 (API 33) is the minimum supported version.
         minSdk 33
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        versionCode appVersionCode
+        versionName appVersionName
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
