@@ -15,15 +15,15 @@ interface UserLevelDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(userLevel: UserLevel)
 
-    @Query("UPDATE user_levels SET xpPoints = xpPoints + :xp")
+    @Query("UPDATE user_levels SET xpPoints = xpPoints + :xp WHERE id = (SELECT id FROM user_levels LIMIT 1)")
     suspend fun addXp(xp: Int)
 
-    @Query("UPDATE user_levels SET predictionsMade = predictionsMade + 1")
+    @Query("UPDATE user_levels SET predictionsMade = predictionsMade + 1 WHERE id = (SELECT id FROM user_levels LIMIT 1)")
     suspend fun incrementPredictions()
 
-    @Query("UPDATE user_levels SET correctPredictions = correctPredictions + 1")
+    @Query("UPDATE user_levels SET correctPredictions = correctPredictions + 1 WHERE id = (SELECT id FROM user_levels LIMIT 1)")
     suspend fun incrementCorrectPredictions()
 
-    @Query("UPDATE user_levels SET streakDays = :days")
+    @Query("UPDATE user_levels SET streakDays = :days WHERE id = (SELECT id FROM user_levels LIMIT 1)")
     suspend fun updateStreak(days: Int)
 }
