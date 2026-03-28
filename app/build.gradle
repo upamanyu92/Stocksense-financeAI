@@ -14,13 +14,17 @@ if (hasReleaseKeystore) {
             .every { keystoreProperties[it] }
 }
 
+// Per-ABI version code multiplier so Play Store can distinguish split APKs.
+ext.abiCodes = ['arm64-v8a': 1, 'x86_64': 2]
+
 android {
     namespace 'com.stocksense.app'
     compileSdk 34
 
     defaultConfig {
         applicationId "com.stocksense.app"
-        minSdk 26
+        // Android 13 (API 33) is the minimum supported version.
+        minSdk 33
         targetSdk 34
         versionCode 1
         versionName "1.0"
@@ -32,6 +36,27 @@ android {
 
         ndk {
             abiFilters 'arm64-v8a', 'x86_64'
+        }
+    }
+
+    // Build separate APKs per ABI so each device gets a smaller download.
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'arm64-v8a', 'x86_64'
+            universalApk true
+        }
+    }
+
+    // Assign unique version codes per ABI split.
+    applicationVariants.all { variant ->
+        variant.outputs.each { output ->
+            def abiFilter = output.getFilter(com.android.build.OutputFile.ABI)
+            if (abiFilter != null) {
+                output.versionCodeOverride =
+                        abiCodes.get(abiFilter, 0) * 1_000_000 + variant.versionCode
+            }
         }
     }
 
@@ -74,19 +99,35 @@ android {
         kotlinCompilerExtensionVersion '1.5.8'
     }
 
+    lint {
+        abortOnError false
+        checkReleaseBuilds true
+    }
+
     packaging {
         resources {
             excludes += '/META-INF/{AL2.0,LGPL2.1}'
         }
     }
 
-    // Uncomment when llama.cpp native library is added
-    // externalNativeBuild {
-    //     cmake {
-    //         path "src/main/cpp/CMakeLists.txt"
-    //         version "3.22.1"
-    //     }
-    // }
+    // Native llama.cpp build – opt-in via gradle.properties or -P flag.
+    // Set stocksense.enableNativeLlm=true and place llama.cpp source under
+    // app/src/main/cpp/llama.cpp/ to enable.
+    if (project.findProperty('stocksense.enableNativeLlm') == 'true') {
+        externalNativeBuild {
+            cmake {
+                path "src/main/cpp/CMakeLists.txt"
+                version "3.22.1"
+            }
+        }
+    }
+}
+
+// Room schema export directory for migration verification.
+kapt {
+    arguments {
+        arg("room.schemaLocation", "$projectDir/schemas")
+    }
 }
 
 dependencies {
@@ -122,6 +163,9 @@ dependencies {
     implementation 'org.tensorflow:tensorflow-lite-support:0.4.4'
     implementation 'org.tensorflow:tensorflow-lite-gpu:2.14.0'
     implementation 'org.tensorflow:tensorflow-lite-gpu-api:2.14.0'
+
+    // OkHttp – HTTP client for BitNet model downloads
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 
     // Kotlinx Serialization
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3'

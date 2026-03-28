@@ -7,12 +7,14 @@ import com.stocksense.app.data.database.AppDatabase
 import com.stocksense.app.data.database.dao.AlertDao
 import com.stocksense.app.data.database.dao.PredictionDao
 import com.stocksense.app.data.repository.StockRepository
+import com.stocksense.app.engine.BitNetModelDownloader
 import com.stocksense.app.engine.LearningEngine
 import com.stocksense.app.engine.ModelManager
 import com.stocksense.app.engine.PredictionEngine
 import com.stocksense.app.ingestion.DataIngestion
 import com.stocksense.app.workers.DataSyncWorker
 import com.stocksense.app.workers.LearningWorker
+import com.stocksense.app.workers.ModelDownloadWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -50,6 +52,9 @@ class StockSenseApp : Application() {
         LearningEngine(database.predictionDao(), database.learningDataDao())
     }
 
+    // BitNet model downloader
+    val bitNetDownloader: BitNetModelDownloader by lazy { BitNetModelDownloader(this) }
+
     // Alerts
     val alertManager: AlertManager by lazy { AlertManager(this, database.alertDao()) }
 
@@ -73,6 +78,11 @@ class StockSenseApp : Application() {
         DataSyncWorker.schedule(this)
         LearningWorker.schedule(this)
 
-        Log.i(TAG, "Background workers scheduled")
+        // Auto-download Microsoft BitNet 1-bit LLM model on first launch.
+        // Uses WorkManager so download runs only when network is available
+        // and survives process death.
+        ModelDownloadWorker.schedule(this)
+
+        Log.i(TAG, "Background workers scheduled (including BitNet model download)")
     }
 }

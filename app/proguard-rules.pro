@@ -25,5 +25,13 @@
     kotlinx.serialization.KSerializer serializer(...);
 }
 
-# Native JNI (llama.cpp)
+# Native JNI (llama.cpp / BitNet)
 -keep class com.stocksense.app.engine.LlamaCpp { *; }
+
+# OkHttp
+-dontwarn okhttp3.internal.platform.**
+-dontwarn org.conscrypt.**
+-dontwarn org.bouncycastle.**
+-dontwarn org.openjsse.**
+-keep class okhttp3.** { *; }
+-keep interface okhttp3.** { *; }
