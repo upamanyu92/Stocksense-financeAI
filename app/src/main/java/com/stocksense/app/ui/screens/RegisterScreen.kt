@@ -39,6 +39,9 @@ import com.stocksense.app.R
 import com.stocksense.app.ui.theme.*
 import com.stocksense.app.viewmodel.AuthViewModel
 
+private const val URL_TERMS = "https://stocksense.app/terms"
+private const val URL_PRIVACY = "https://stocksense.app/privacy"
+
 @Composable
 fun RegisterScreen(
     viewModel: AuthViewModel,
@@ -261,11 +264,11 @@ fun RegisterScreen(
                     onClick = { offset ->
                         termsAnnotated.getStringAnnotations(tag = "TERMS", start = offset, end = offset)
                             .firstOrNull()?.let {
-                                uriHandler.openUri("https://stocksense.app/terms")
+                                uriHandler.openUri(URL_TERMS)
                             }
                         termsAnnotated.getStringAnnotations(tag = "PRIVACY", start = offset, end = offset)
                             .firstOrNull()?.let {
-                                uriHandler.openUri("https://stocksense.app/privacy")
+                                uriHandler.openUri(URL_PRIVACY)
                             }
                     }
                 )

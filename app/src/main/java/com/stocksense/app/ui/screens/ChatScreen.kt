@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.stocksense.app.R
@@ -50,7 +51,7 @@ fun ChatScreen(
                             painter = painterResource(id = R.drawable.ic_app_logo),
                             contentDescription = null,
                             modifier = Modifier.size(28.dp),
-                            tint = NeonGreen
+                            tint = Color.Unspecified
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("senseAI")
@@ -149,7 +150,7 @@ private fun WelcomeMessage() {
             painter = painterResource(id = R.drawable.ic_app_logo),
             contentDescription = "StockSense AI",
             modifier = Modifier.size(56.dp),
-            tint = NeonGreen
+            tint = Color.Unspecified
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(

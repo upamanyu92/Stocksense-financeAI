@@ -10,6 +10,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -68,7 +69,8 @@ fun StockSenseNavGraph(
                                     Icon(
                                         painter = painterResource(id = screen.iconRes),
                                         contentDescription = screen.label,
-                                        modifier = Modifier.size(24.dp)
+                                        modifier = Modifier.size(24.dp),
+                                        tint = Color.Unspecified
                                     )
                                 } else if (screen.icon != null) {
                                     Icon(screen.icon, contentDescription = screen.label)
