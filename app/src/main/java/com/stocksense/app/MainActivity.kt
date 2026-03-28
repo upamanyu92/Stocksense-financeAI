@@ -95,7 +95,7 @@ class MainActivity : ComponentActivity() {
         val llmSettingsViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
-                LlmSettingsViewModel(app.bitNetDownloader, app.modelManager.llmEngine, applicationContext) as T
+                LlmSettingsViewModel(app.bitNetDownloader, app.modelManager.llmEngine) as T
         })[LlmSettingsViewModel::class.java]
 
         setContent {
