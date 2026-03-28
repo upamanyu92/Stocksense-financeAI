@@ -13,6 +13,38 @@ import java.util.concurrent.ConcurrentHashMap
 private const val TAG = "LLMInsightEngine"
 
 /**
+ * Status of the local LLM agent.
+ */
+enum class LlmStatus {
+    /** LLM native library is not available; using template fallback. */
+    NATIVE_UNAVAILABLE,
+    /** Model file not downloaded yet. */
+    MODEL_NOT_DOWNLOADED,
+    /** Model is currently loading into memory. */
+    LOADING,
+    /** Model is loaded and ready for inference. */
+    READY,
+    /** Model failed to load; using template fallback. */
+    LOAD_FAILED,
+    /** Using deterministic template fallback (no LLM). */
+    TEMPLATE_FALLBACK
+}
+
+/**
+ * Metrics about the LLM agent's inference performance.
+ */
+data class AgenticMetrics(
+    val status: LlmStatus = LlmStatus.NATIVE_UNAVAILABLE,
+    val qualityMode: QualityMode = QualityMode.BALANCED,
+    val isNativeAvailable: Boolean = false,
+    val isModelDownloaded: Boolean = false,
+    val modelFileName: String = "",
+    val lastInferenceTimeMs: Long = 0L,
+    val cacheHits: Int = 0,
+    val totalInferences: Int = 0
+)
+
+/**
  * Quality modes that adapt model size to device capabilities.
  */
 enum class QualityMode {
@@ -52,6 +84,16 @@ class LLMInsightEngine(private val context: Context) {
     private var currentMode: QualityMode? = null
     private var isNativeAvailable = false
 
+    /** Current status of the LLM agent. */
+    @Volatile
+    var status: LlmStatus = LlmStatus.NATIVE_UNAVAILABLE
+        private set
+
+    /** Tracks inference performance metrics. */
+    private var lastInferenceTimeMs: Long = 0L
+    private var cacheHitCount: Int = 0
+    private var totalInferenceCount: Int = 0
+
     /** Helper used to locate downloaded model files. */
     private val downloader = BitNetModelDownloader(context)
 
@@ -61,6 +103,23 @@ class LLMInsightEngine(private val context: Context) {
 
     init {
         isNativeAvailable = tryLoadNativeLib()
+        status = if (isNativeAvailable) LlmStatus.MODEL_NOT_DOWNLOADED else LlmStatus.NATIVE_UNAVAILABLE
+    }
+
+    /** Get current agentic metrics snapshot. */
+    fun getMetrics(): AgenticMetrics {
+        val mode = currentMode ?: autoSelectMode()
+        val modelFile = downloader.modelFileFor(mode)
+        return AgenticMetrics(
+            status = status,
+            qualityMode = mode,
+            isNativeAvailable = isNativeAvailable,
+            isModelDownloaded = modelFile.exists(),
+            modelFileName = modelFile.name,
+            lastInferenceTimeMs = lastInferenceTimeMs,
+            cacheHits = cacheHitCount,
+            totalInferences = totalInferenceCount
+        )
     }
 
     // ---------- Public API ----------
@@ -75,20 +134,25 @@ class LLMInsightEngine(private val context: Context) {
         currentMode = mode
         if (!isNativeAvailable) {
             Log.i(TAG, "Native library not available – using template fallback")
+            status = LlmStatus.TEMPLATE_FALLBACK
             return@withContext
         }
         val modelFile = downloader.modelFileFor(mode)
         if (!modelFile.exists()) {
             Log.w(TAG, "Model file not found: ${modelFile.absolutePath} – using fallback")
+            status = LlmStatus.MODEL_NOT_DOWNLOADED
             return@withContext
         }
+        status = LlmStatus.LOADING
         try {
             modelHandle = LlamaCpp.loadModel(modelFile.absolutePath, nGpuLayers(mode))
             contextHandle = LlamaCpp.createContext(modelHandle, contextSizeFor(mode))
+            status = LlmStatus.READY
             Log.i(TAG, "BitNet LLM loaded: ${modelFile.name} (mode=$mode)")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load LLM: ${e.message}")
             modelHandle = 0L
+            status = LlmStatus.LOAD_FAILED
         }
     }
 
@@ -120,15 +184,20 @@ class LLMInsightEngine(private val context: Context) {
         val cacheKey = "${prediction.symbol}_${prediction.direction}"
         responseCache[cacheKey]?.let { cached ->
             if (System.currentTimeMillis() - cached.timestamp < cacheTtlMs) {
+                cacheHitCount++
                 return@withContext cached.text
             }
         }
+
+        val startTime = System.currentTimeMillis()
 
         val insight = if (modelHandle != 0L && isNativeAvailable) {
             val prompt = buildPrompt(prediction, recentPrices)
             val truncated = truncatePromptIfNeeded(prompt)
             try {
-                LlamaCpp.runInference(contextHandle, truncated, maxTokens = 200)
+                val result = LlamaCpp.runInference(contextHandle, truncated, maxTokens = 200)
+                totalInferenceCount++
+                result
             } catch (e: Exception) {
                 Log.e(TAG, "Inference error: ${e.message}")
                 templateInsight(prediction)
@@ -137,8 +206,39 @@ class LLMInsightEngine(private val context: Context) {
             templateInsight(prediction)
         }
 
+        lastInferenceTimeMs = System.currentTimeMillis() - startTime
         responseCache[cacheKey] = CachedInsight(insight, System.currentTimeMillis())
         insight
+    }
+
+    /**
+     * Generate a response to a free-form user question about a stock.
+     * Falls back to template if LLM is not loaded.
+     */
+    suspend fun chat(
+        userMessage: String,
+        symbol: String,
+        recentPrices: List<Double>
+    ): String = withContext(Dispatchers.IO) {
+        val startTime = System.currentTimeMillis()
+
+        val response = if (modelHandle != 0L && isNativeAvailable) {
+            val prompt = buildChatPrompt(userMessage, symbol, recentPrices)
+            val truncated = truncatePromptIfNeeded(prompt)
+            try {
+                val result = LlamaCpp.runInference(contextHandle, truncated, maxTokens = 300)
+                totalInferenceCount++
+                result
+            } catch (e: Exception) {
+                Log.e(TAG, "Chat inference error: ${e.message}")
+                templateChatResponse(userMessage, symbol)
+            }
+        } else {
+            templateChatResponse(userMessage, symbol)
+        }
+
+        lastInferenceTimeMs = System.currentTimeMillis() - startTime
+        response
     }
 
     fun isModelLoaded(): Boolean = modelHandle != 0L || !isNativeAvailable
@@ -215,6 +315,36 @@ Insight:""".trimIndent()
     } catch (e: UnsatisfiedLinkError) {
         Log.i(TAG, "llama native library not linked – template mode active")
         false
+    }
+
+    private fun buildChatPrompt(userMessage: String, symbol: String, recentPrices: List<Double>): String {
+        val priceStr = recentPrices.takeLast(5).joinToString(", ") { "%.2f".format(it) }
+        return """
+You are a financial analyst AI assistant. Answer the user's question concisely.
+
+Stock: $symbol
+Recent prices: $priceStr
+
+User: $userMessage
+
+Answer:""".trimIndent()
+    }
+
+    /** Template chat response when LLM is not available. */
+    private fun templateChatResponse(userMessage: String, symbol: String): String {
+        val lower = userMessage.lowercase()
+        return when {
+            lower.contains("buy") || lower.contains("sell") ->
+                "Based on available data for $symbol, I recommend monitoring key indicators like RSI and MACD before making buy/sell decisions. Always consider your risk tolerance and investment horizon."
+            lower.contains("price") || lower.contains("target") ->
+                "For $symbol price targets, the prediction engine uses historical momentum and adaptive learning weights. Check the Prediction tab for the latest ML-based price forecast."
+            lower.contains("risk") || lower.contains("safe") ->
+                "$symbol risk assessment depends on volatility, sector trends, and market conditions. Diversification and position sizing are key risk management strategies."
+            lower.contains("news") || lower.contains("event") ->
+                "For the latest news on $symbol, I recommend checking verified financial sources. The sentiment engine weighs SEBI filings (1.5x) and exchange releases (1.3x) most heavily."
+            else ->
+                "Regarding $symbol: I can help with price analysis, predictions, risk assessment, and market insights. The local LLM agent provides deeper analysis when the BitNet model is loaded."
+        }
     }
 
     private data class CachedInsight(val text: String, val timestamp: Long)

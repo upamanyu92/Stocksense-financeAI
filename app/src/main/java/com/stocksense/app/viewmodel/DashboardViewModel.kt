@@ -11,6 +11,8 @@ import kotlin.math.max
 
 data class DashboardUiState(
     val stocks: List<StockData> = emptyList(),
+    val filteredStocks: List<StockData> = emptyList(),
+    val searchQuery: String = "",
     val portfolio: PortfolioSnapshot? = null,
     val predictions: List<AiPredictionCard> = emptyList(),
     val sentiment: SentimentSummary? = null,
@@ -30,9 +32,26 @@ class DashboardViewModel(
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
+    private val _searchQuery = MutableStateFlow("")
+
     init {
         observeStocks()
         seedStaticContent()
+    }
+
+    fun updateSearchQuery(query: String) {
+        _searchQuery.value = query
+        _uiState.update { it.copy(searchQuery = query) }
+        if (query.isBlank()) {
+            _uiState.update { it.copy(filteredStocks = it.stocks) }
+        } else {
+            viewModelScope.launch {
+                stockRepository.searchStocks(query)
+                    .collect { results ->
+                        _uiState.update { it.copy(filteredStocks = results) }
+                    }
+            }
+        }
     }
 
     private fun observeStocks() {
@@ -46,6 +65,7 @@ class DashboardViewModel(
                     _uiState.update {
                         it.copy(
                             stocks = stocks,
+                            filteredStocks = if (it.searchQuery.isBlank()) stocks else it.filteredStocks,
                             portfolio = snapshot,
                             predictions = predictions,
                             isLoading = false,

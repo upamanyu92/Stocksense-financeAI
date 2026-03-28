@@ -14,13 +14,15 @@ import java.io.InputStreamReader
 
 private const val TAG = "DataIngestion"
 private const val STOCKS_ASSET = "stocks_initial.json"
+private const val STK_ASSET = "stk.json"
 private const val HISTORY_ASSET_PREFIX = "history_"   // e.g. history_AAPL.csv
 
 /**
  * DataIngestion – loads seed stock data from bundled assets on first launch.
  *
  * Assets required (place in app/src/main/assets/):
- *   stocks_initial.json  – array of [SeedStock]
+ *   stk.json             – primary array of company details (with industry, description, etc.)
+ *   stocks_initial.json  – fallback array of [SeedStock]
  *   history_AAPL.csv     – CSV with columns: date,open,high,low,close,volume
  *   history_GOOG.csv     – …
  */
@@ -31,6 +33,7 @@ class DataIngestion(
 
     /**
      * Seed the database from bundled assets if it is empty.
+     * Prefers stk.json (comprehensive company details); falls back to stocks_initial.json.
      * Safe to call multiple times; will no-op if data already exists.
      */
     suspend fun seedIfEmpty() = withContext(Dispatchers.IO) {
@@ -39,7 +42,7 @@ class DataIngestion(
             return@withContext
         }
         try {
-            val stocks = loadStocksFromAsset()
+            val stocks = loadStocksFromStkAsset() ?: loadStocksFromAsset()
             repository.saveStocks(stocks)
             for (stock in stocks) {
                 loadHistoryFromAsset(stock.symbol)?.let { history ->
@@ -53,6 +56,21 @@ class DataIngestion(
     }
 
     // ---------- Private helpers ----------
+
+    /**
+     * Load stocks from stk.json (comprehensive company details).
+     * Returns null if the asset is missing.
+     */
+    private fun loadStocksFromStkAsset(): List<StockData>? {
+        return try {
+            val json = context.assets.open(STK_ASSET).bufferedReader().readText()
+            val seeds = Json { ignoreUnknownKeys = true }.decodeFromString<List<SeedStock>>(json)
+            seeds.map { it.toStockData() }
+        } catch (e: Exception) {
+            Log.d(TAG, "stk.json not found or invalid, falling back to stocks_initial.json")
+            null
+        }
+    }
 
     private fun loadStocksFromAsset(): List<StockData> {
         val json = context.assets.open(STOCKS_ASSET).bufferedReader().readText()

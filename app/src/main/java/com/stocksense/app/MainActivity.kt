@@ -43,6 +43,12 @@ class MainActivity : ComponentActivity() {
                 AlertsViewModel(app.alertDao, app.alertManager) as T
         })[AlertsViewModel::class.java]
 
+        val profileViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                ProfileViewModel(app.userPreferencesManager) as T
+        })[ProfileViewModel::class.java]
+
         setContent {
             StockSenseTheme {
                 Surface(
@@ -53,7 +59,8 @@ class MainActivity : ComponentActivity() {
                         dashboardViewModel = dashboardViewModel,
                         predictionViewModel = predictionViewModel,
                         insightsViewModel = insightsViewModel,
-                        alertsViewModel = alertsViewModel
+                        alertsViewModel = alertsViewModel,
+                        profileViewModel = profileViewModel
                     )
                 }
             }
