@@ -197,11 +197,7 @@ class StockRepository(
         }
 
     private fun defaultHistoryRequirement(symbol: String): MarketDataRequirementType =
-        when {
-            symbol.endsWith(".NS", ignoreCase = true) || symbol.endsWith(".BO", ignoreCase = true) ->
-                MarketDataRequirementType.INTRADAY_HISTORY
-            else -> MarketDataRequirementType.INTRADAY_HISTORY
-        }
+        MarketDataRequirementType.INTRADAY_HISTORY
 
     // ---------- Mapping helpers ----------
 
