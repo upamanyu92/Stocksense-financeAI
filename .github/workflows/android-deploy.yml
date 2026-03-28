@@ -116,6 +116,8 @@ jobs:
           ref = os.environ.get("GITHUB_REF", "")
           ref_name = os.environ.get("GITHUB_REF_NAME", "")
           run_number = int(os.environ.get("GITHUB_RUN_NUMBER", "1"))
+          # Reserve 900000-999999 for non-tagged branch builds so tagged semantic
+          # versions up to 8.99.999 fit below that range without collisions.
           branch_build_base = 900_000
           branch_build_max_run = 99_999
 
@@ -131,6 +133,8 @@ jobs:
                       f"Release tags must follow vMAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH, got: {ref_name}"
                   )
               major, minor, patch = map(int, match.groups())
+              # Encode MAJOR.MINOR.PATCH as MMMMM + mmm + ppp, which supports
+              # tagged versions up to 8.99.999 while staying below branch_build_base.
               version_code = major * 100_000 + minor * 1_000 + patch
               if version_code >= 900_000:
                   raise SystemExit(
@@ -174,7 +178,8 @@ jobs:
         run: |
           shopt -s nullglob
           # Gradle currently emits release APKs as app-<target>-release.apk and may
-          # append -unsigned depending on signing configuration.
+          # append -unsigned depending on signing configuration; <target> is usually
+          # an ABI like arm64-v8a/x86_64 or the universal split.
           for apk in app/build/outputs/apk/release/*.apk; do
             filename="$(basename "$apk")"
             if [[ "$filename" =~ ^app-(.+?)-release(-unsigned)?\.apk$ ]]; then
