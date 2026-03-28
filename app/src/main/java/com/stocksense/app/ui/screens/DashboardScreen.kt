@@ -9,7 +9,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowOutward
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -31,7 +33,8 @@ import com.stocksense.app.viewmodel.DashboardViewModel
 @Composable
 fun DashboardScreen(
     viewModel: DashboardViewModel,
-    onStockClick: (String) -> Unit
+    onStockClick: (String) -> Unit,
+    onProfileClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -59,7 +62,11 @@ fun DashboardScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            HeaderBar()
+            HeaderBar(
+                searchQuery = uiState.searchQuery,
+                onSearchQueryChange = { viewModel.updateSearchQuery(it) },
+                onProfileClick = onProfileClick
+            )
 
             uiState.portfolio?.let {
                 HeroPortfolioCard(snapshot = it)
@@ -73,8 +80,8 @@ fun DashboardScreen(
             PredictionsSection(uiState.predictions)
 
             WatchlistSection(
-                title = "Watchlist",
-                stocks = uiState.stocks,
+                title = if (uiState.searchQuery.isBlank()) "Watchlist" else "Search Results",
+                stocks = uiState.filteredStocks,
                 onStockClick = onStockClick
             )
 
@@ -87,27 +94,56 @@ fun DashboardScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HeaderBar() {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            Text("Good evening, Upamanyu", color = MutedGrey, fontSize = 14.sp)
-            Text("StockSense Command Center", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-        }
-        Box(
-            modifier = Modifier
-                .background(color = GlassSurface, shape = RoundedCornerShape(14.dp))
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+private fun HeaderBar(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onProfileClick: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Default.Search, contentDescription = null, tint = MutedGrey)
-                Text("Search TCS, RELIANCE, NIFTY", color = Color.White, fontSize = 13.sp)
+            Column(modifier = Modifier.weight(1f)) {
+                Text("StockSense Command Center", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            }
+            IconButton(onClick = onProfileClick) {
+                Icon(
+                    Icons.Default.Person,
+                    contentDescription = "Profile",
+                    tint = MutedGrey
+                )
             }
         }
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = onSearchQueryChange,
+            placeholder = { Text("Search TCS, RELIANCE, NIFTY…", color = MutedGrey) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MutedGrey) },
+            trailingIcon = {
+                if (searchQuery.isNotBlank()) {
+                    IconButton(onClick = { onSearchQueryChange("") }) {
+                        Icon(Icons.Default.Clear, contentDescription = "Clear search", tint = MutedGrey)
+                    }
+                }
+            },
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = GlassSurface,
+                unfocusedContainerColor = GlassSurface,
+                focusedBorderColor = ElectricBlue,
+                unfocusedBorderColor = Color.Transparent,
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                cursorColor = ElectricBlue
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 

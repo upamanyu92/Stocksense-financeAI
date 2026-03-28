@@ -27,4 +27,7 @@ interface StockDao {
 
     @Query("SELECT COUNT(*) FROM stocks")
     suspend fun count(): Int
+
+    @Query("SELECT * FROM stocks WHERE symbol LIKE '%' || :query || '%' OR name LIKE '%' || :query || '%' ORDER BY symbol ASC")
+    fun searchStocks(query: String): Flow<List<Stock>>
 }

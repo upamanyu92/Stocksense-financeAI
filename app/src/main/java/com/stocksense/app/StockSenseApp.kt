@@ -12,6 +12,7 @@ import com.stocksense.app.engine.LearningEngine
 import com.stocksense.app.engine.ModelManager
 import com.stocksense.app.engine.PredictionEngine
 import com.stocksense.app.ingestion.DataIngestion
+import com.stocksense.app.preferences.UserPreferencesManager
 import com.stocksense.app.workers.DataSyncWorker
 import com.stocksense.app.workers.LearningWorker
 import com.stocksense.app.workers.ModelDownloadWorker
@@ -60,6 +61,9 @@ class StockSenseApp : Application() {
 
     // Data ingestion
     val dataIngestion: DataIngestion by lazy { DataIngestion(this, stockRepository) }
+
+    // User preferences
+    val userPreferencesManager: UserPreferencesManager by lazy { UserPreferencesManager(this) }
 
     override fun onCreate() {
         super.onCreate()
