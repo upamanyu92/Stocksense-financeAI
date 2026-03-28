@@ -122,7 +122,7 @@ fun SearchResultsScreen(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     items(uiState.results) { result ->
-                        SearchResultRow(result = result, onClick = { onResultClick(result.code) })
+                        SearchResultRow(result = result, onClick = { onResultClick(result.symbol) })
                     }
                 }
             }

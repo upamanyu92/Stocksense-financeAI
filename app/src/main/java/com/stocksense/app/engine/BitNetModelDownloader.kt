@@ -47,6 +47,8 @@ class BitNetModelDownloader(private val context: Context) {
         private const val HF_BASE =
             "https://huggingface.co/microsoft/bitnet-b1.58-2B-4T-gguf/resolve/main"
 
+        const val IMPORTED_MODEL_FILE_NAME = "imported_model.gguf"
+
         /** Map of quality mode to (file-name, download-URL). */
         val MODEL_CATALOGUE: Map<QualityMode, Pair<String, String>> = mapOf(
             QualityMode.LITE to Pair(

@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.stocksense.app.R
+import com.stocksense.app.engine.LlmStatus
 import com.stocksense.app.ui.theme.*
 import com.stocksense.app.viewmodel.ChatUiMessage
 import com.stocksense.app.viewmodel.ChatViewModel
@@ -78,6 +80,14 @@ fun ChatScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            AgentStatusStrip(
+                status = uiState.llmStatus,
+                modelName = uiState.llmMetrics.modelFileName,
+                isChecking = uiState.isCheckingAgent,
+                lastInferenceTimeMs = uiState.llmMetrics.lastInferenceTimeMs,
+                onRefresh = { viewModel.refreshAgentStatus() }
+            )
+
             // Messages list
             LazyColumn(
                 modifier = Modifier.weight(1f),
@@ -134,6 +144,62 @@ fun ChatScreen(
                 },
                 isLoading = uiState.isLoading
             )
+        }
+    }
+}
+
+@Composable
+private fun AgentStatusStrip(
+    status: LlmStatus,
+    modelName: String,
+    isChecking: Boolean,
+    lastInferenceTimeMs: Long,
+    onRefresh: () -> Unit
+) {
+    val (label, color) = when (status) {
+        LlmStatus.READY -> "Agent live" to NeonGreen
+        LlmStatus.LOADING -> "Loading agent" to LuxeGold
+        LlmStatus.MODEL_NOT_DOWNLOADED -> "Model missing" to SoftRed
+        LlmStatus.NATIVE_UNAVAILABLE -> "Runtime unavailable" to SoftRed
+        LlmStatus.LOAD_FAILED -> "Load failed" to SoftRed
+        LlmStatus.TEMPLATE_FALLBACK -> "Fallback mode" to ElectricBlue
+    }
+
+    Surface(
+        color = Graphite,
+        tonalElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(color)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(label, color = color, style = MaterialTheme.typography.labelLarge)
+                Text(
+                    text = buildString {
+                        append(modelName.ifBlank { "No model selected" })
+                        if (lastInferenceTimeMs > 0) append(" • ${lastInferenceTimeMs} ms")
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MutedGrey
+                )
+            }
+            IconButton(onClick = onRefresh, enabled = !isChecking) {
+                if (isChecking) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Default.Refresh, contentDescription = "Refresh agent status", tint = ElectricBlue)
+                }
+            }
         }
     }
 }

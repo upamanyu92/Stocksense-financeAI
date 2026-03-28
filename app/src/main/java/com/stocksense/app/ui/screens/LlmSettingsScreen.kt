@@ -108,6 +108,14 @@ fun LlmSettingsScreen(
                         Text("Model: ${uiState.currentModelName}", color = ElectricBlue, fontSize = 13.sp)
                     }
 
+                    Text(
+                        text = "Native: ${if (uiState.isNativeAvailable) "Available" else "Unavailable"} • " +
+                            "Downloaded: ${if (uiState.isModelDownloaded) "Yes" else "No"} • " +
+                            "Last check: ${if (uiState.lastInferenceTimeMs > 0) "${uiState.lastInferenceTimeMs} ms" else "—"}",
+                        color = MutedGrey,
+                        fontSize = 12.sp
+                    )
+
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (uiState.status == LlmStatus.LOAD_FAILED || uiState.status == LlmStatus.MODEL_NOT_DOWNLOADED) {
                             OutlinedButton(
@@ -119,6 +127,22 @@ fun LlmSettingsScreen(
                                 Text("Reload")
                             }
                         }
+                        OutlinedButton(
+                            onClick = { viewModel.runLiveCheck() },
+                            enabled = !uiState.isRunningLiveCheck,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonGreen)
+                        ) {
+                            if (uiState.isRunningLiveCheck) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Live check")
+                        }
                         if (uiState.currentModelName.isNotBlank()) {
                             OutlinedButton(
                                 onClick = { viewModel.deleteModels() },
@@ -129,6 +153,10 @@ fun LlmSettingsScreen(
                                 Text("Delete")
                             }
                         }
+                    }
+
+                    uiState.liveCheckMessage?.let { message ->
+                        Text(message, color = MutedGrey, fontSize = 12.sp)
                     }
                 }
             }

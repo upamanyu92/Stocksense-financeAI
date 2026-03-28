@@ -65,6 +65,8 @@ class SearchViewModel(
     private suspend fun performSearch(query: String) {
         _uiState.update { it.copy(isSearching = true) }
 
+        val localStocks = stockRepository.observeAllStocks().first()
+        val localSymbolLookup = buildLocalSymbolLookup(localStocks)
         val allResults = mutableListOf<SearchResult>()
 
         // Search NSE securities
@@ -78,8 +80,15 @@ class SearchViewModel(
                     nse.symbol.contains(query, ignoreCase = true) -> "Symbol"
                     else -> "Match"
                 }
+                val resolvedSymbol = resolveResultSymbol(
+                    localSymbolLookup = localSymbolLookup,
+                    fallbackSymbol = nse.code,
+                    nseSymbol = nse.symbol,
+                    displayName = nse.name
+                )
                 SearchResult(
                     displayName = nse.name,
+                    symbol = resolvedSymbol,
                     code = nse.code,
                     type = type,
                     matchSource = matchSource
@@ -90,7 +99,10 @@ class SearchViewModel(
 
         // Also search stocks table
         try {
-            stockRepository.searchStocks(query).first().let { stocks ->
+            localStocks.filter { stock ->
+                stock.symbol.contains(query, ignoreCase = true) ||
+                    stock.name.contains(query, ignoreCase = true)
+            }.let { stocks ->
                 _filteredStocks.value = stocks
                 stocks.forEach { stock ->
                     // Avoid duplicate if already in NSE results
@@ -98,6 +110,7 @@ class SearchViewModel(
                         allResults.add(
                             SearchResult(
                                 displayName = stock.name,
+                                symbol = stock.symbol,
                                 code = stock.symbol,
                                 type = SearchResultType.STOCK_SYMBOL,
                                 matchSource = "Stock Data"
@@ -131,12 +144,20 @@ class SearchViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isSearching = true, query = query) }
 
+            val localStocks = stockRepository.observeAllStocks().first()
+            val localSymbolLookup = buildLocalSymbolLookup(localStocks)
             val allResults = mutableListOf<SearchResult>()
             try {
                 val nseResults = nseSecurityDao.search(query, limit = 500)
                 allResults.addAll(nseResults.map { nse ->
                     SearchResult(
                         displayName = nse.name,
+                        symbol = resolveResultSymbol(
+                            localSymbolLookup = localSymbolLookup,
+                            fallbackSymbol = nse.code,
+                            nseSymbol = nse.symbol,
+                            displayName = nse.name
+                        ),
                         code = nse.code,
                         type = classifySecurityType(nse.name, nse.code),
                         matchSource = when {
@@ -161,4 +182,27 @@ class SearchViewModel(
             else -> SearchResultType.COMPANY
         }
     }
+
+    private fun resolveResultSymbol(
+        localSymbolLookup: Map<String, String>,
+        fallbackSymbol: String,
+        nseSymbol: String,
+        displayName: String
+    ): String {
+        if (nseSymbol.isNotBlank()) {
+            return nseSymbol
+        }
+
+        return localSymbolLookup[displayName.uppercase()]
+            ?: localSymbolLookup[fallbackSymbol.uppercase()]
+            ?: fallbackSymbol
+    }
+
+    private fun buildLocalSymbolLookup(localStocks: List<StockData>): Map<String, String> =
+        buildMap {
+            localStocks.forEach { stock ->
+                put(stock.name.uppercase(), stock.symbol)
+                put(stock.symbol.uppercase(), stock.symbol)
+            }
+        }
 }

@@ -11,6 +11,8 @@ import com.stocksense.app.data.database.dao.PredictionDao
 import com.stocksense.app.data.database.dao.TradeDao
 import com.stocksense.app.data.database.dao.UserLevelDao
 import com.stocksense.app.data.database.dao.WatchlistDao
+import com.stocksense.app.data.remote.MarketDataRouter
+import com.stocksense.app.data.remote.providers.YahooFinanceProvider
 import com.stocksense.app.data.repository.StockRepository
 import com.stocksense.app.engine.AgenticPipeline
 import com.stocksense.app.engine.BitNetModelDownloader
@@ -53,9 +55,21 @@ class StockSenseApp : Application() {
     val chatMessageDao: ChatMessageDao by lazy { database.chatMessageDao() }
     val nseSecurityDao by lazy { database.nseSecurityDao() }
 
+    private val marketDataRouter: MarketDataRouter by lazy {
+        MarketDataRouter(
+            listOf(
+                YahooFinanceProvider()
+            )
+        )
+    }
+
     // Repository
     val stockRepository: StockRepository by lazy {
-        StockRepository(database.stockDao(), database.stockHistoryDao())
+        StockRepository(
+            stockDao = database.stockDao(),
+            historyDao = database.stockHistoryDao(),
+            marketDataRouter = marketDataRouter
+        )
     }
 
     // Engines
@@ -85,6 +99,7 @@ class StockSenseApp : Application() {
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "StockSenseApp starting up")
+        Log.i(TAG, "Configured market data providers: ${marketDataRouter.configuredProviderIds()}")
 
         // Seed database on first launch (non-blocking)
         appScope.launch {

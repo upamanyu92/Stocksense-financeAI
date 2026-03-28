@@ -6,8 +6,8 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
         val predictionViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
-                PredictionViewModel(app.stockRepository, app.modelManager) as T
+                PredictionViewModel(app.stockRepository, app.modelManager, app.nseSecurityDao) as T
         })[PredictionViewModel::class.java]
 
         val insightsViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
@@ -62,10 +62,16 @@ class MainActivity : ComponentActivity() {
                 ProfileViewModel(app.userPreferencesManager, app.modelManager) as T
         })[ProfileViewModel::class.java]
 
+        val feedbackViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                FeedbackViewModel(app.userPreferencesManager) as T
+        })[FeedbackViewModel::class.java]
+
         val watchlistViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
-                WatchlistViewModel(app.watchlistDao, app.stockRepository) as T
+                WatchlistViewModel(app.watchlistDao, app.stockRepository, app.nseSecurityDao) as T
         })[WatchlistViewModel::class.java]
 
         val portfolioViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
@@ -114,6 +120,7 @@ class MainActivity : ComponentActivity() {
                             insightsViewModel = insightsViewModel,
                             alertsViewModel = alertsViewModel,
                             profileViewModel = profileViewModel,
+                            feedbackViewModel = feedbackViewModel,
                             watchlistViewModel = watchlistViewModel,
                             portfolioViewModel = portfolioViewModel,
                             chatViewModel = chatViewModel,

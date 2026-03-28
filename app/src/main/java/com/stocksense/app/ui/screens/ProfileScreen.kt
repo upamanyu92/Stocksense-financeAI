@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
@@ -26,6 +27,7 @@ fun ProfileScreen(
     viewModel: ProfileViewModel,
     onBack: () -> Unit,
     onNavigateToLlmSettings: () -> Unit = {},
+    onNavigateToFeedback: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -317,6 +319,35 @@ fun ProfileScreen(
                         Icon(
                             Icons.Default.Settings,
                             contentDescription = "LLM Settings",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Surface(
+                    onClick = onNavigateToFeedback,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Send Feedback", fontWeight = FontWeight.Medium)
+                            Text(
+                                "Share feedback, screenshots, or files",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        Icon(
+                            Icons.Default.Email,
+                            contentDescription = "Feedback",
                             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
                     }
