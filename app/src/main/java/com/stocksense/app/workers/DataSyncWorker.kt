@@ -39,7 +39,7 @@ class DataSyncWorker(
             app.dataIngestion.seedIfEmpty()
 
             val refreshed = app.stockRepository.refreshTrackedStocks(
-                MarketDataRequirementType.DELAYED_GLOBAL_QUOTE
+                MarketDataRequirementType.QUOTE
             )
             Log.i(TAG, "Tracked stocks refreshed via provider routing: $refreshed")
 

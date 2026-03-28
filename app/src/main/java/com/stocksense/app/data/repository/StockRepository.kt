@@ -44,7 +44,7 @@ class StockRepository(
     /** Get a single stock by symbol, or null. */
     suspend fun getStock(
         symbol: String,
-        requirementType: MarketDataRequirementType = defaultQuoteRequirement(symbol)
+        requirementType: MarketDataRequirementType = defaultQuoteRequirement()
     ): StockData? {
         val local = stockDao.getStock(symbol)
         if (shouldRefreshQuote(local?.lastUpdated, requirementType)) {
@@ -65,7 +65,7 @@ class StockRepository(
         var localHistory = historyDao.getRecentHistory(symbol, limit).map {
             HistoryPoint(it.timestamp, it.close, it.volume)
         }
-        if (shouldRefreshHistory(localHistory, requirementType)) {
+        if (shouldRefreshHistory(localHistory)) {
             refreshHistory(symbol, requirementType, limit)
             localHistory = historyDao.getRecentHistory(symbol, limit).map {
                 HistoryPoint(it.timestamp, it.close, it.volume)
@@ -76,7 +76,7 @@ class StockRepository(
 
     suspend fun refreshStock(
         symbol: String,
-        requirementType: MarketDataRequirementType = defaultQuoteRequirement(symbol),
+        requirementType: MarketDataRequirementType = defaultQuoteRequirement(),
         displayName: String? = null
     ): StockData? {
         val payload = marketDataRouter?.fetch(
@@ -115,7 +115,7 @@ class StockRepository(
     }
 
     suspend fun refreshTrackedStocks(
-        requirementType: MarketDataRequirementType = MarketDataRequirementType.DELAYED_GLOBAL_QUOTE
+        requirementType: MarketDataRequirementType = MarketDataRequirementType.QUOTE
     ): Int {
         if (marketDataRouter?.hasConfiguredProviders() != true) return 0
         val trackedStocks = stockDao.getAllStocks().first()
@@ -167,7 +167,6 @@ class StockRepository(
         if (marketDataRouter?.hasConfiguredProviders() != true) return false
         if (lastUpdated == null) return true
         val freshnessWindow = when (requirementType) {
-            MarketDataRequirementType.REALTIME_ASIA_QUOTE -> 60_000L
             MarketDataRequirementType.MARKET_METADATA,
             MarketDataRequirementType.FUNDAMENTAL_ANALYSIS -> 86_400_000L
             else -> 900_000L
@@ -175,26 +174,16 @@ class StockRepository(
         return System.currentTimeMillis() - lastUpdated > freshnessWindow
     }
 
-    private fun shouldRefreshHistory(
-        localHistory: List<HistoryPoint>,
-        requirementType: MarketDataRequirementType
-    ): Boolean {
+    private fun shouldRefreshHistory(localHistory: List<HistoryPoint>): Boolean {
         if (marketDataRouter?.hasConfiguredProviders() != true) return false
         if (localHistory.isEmpty()) return true
         val latestTimestamp = localHistory.maxOf { it.timestamp }
-        val freshnessWindow = when (requirementType) {
-            MarketDataRequirementType.INTRADAY_HISTORY -> 300_000L
-            else -> 86_400_000L
-        }
+        val freshnessWindow = 86_400_000L
         return System.currentTimeMillis() - latestTimestamp > freshnessWindow
     }
 
-    private fun defaultQuoteRequirement(symbol: String): MarketDataRequirementType =
-        when {
-            symbol.endsWith(".NS", ignoreCase = true) || symbol.endsWith(".BO", ignoreCase = true) ->
-                MarketDataRequirementType.REALTIME_ASIA_QUOTE
-            else -> MarketDataRequirementType.DELAYED_GLOBAL_QUOTE
-        }
+    private fun defaultQuoteRequirement(): MarketDataRequirementType =
+        MarketDataRequirementType.QUOTE
 
     private fun defaultHistoryRequirement(): MarketDataRequirementType =
         MarketDataRequirementType.DAILY_HISTORY

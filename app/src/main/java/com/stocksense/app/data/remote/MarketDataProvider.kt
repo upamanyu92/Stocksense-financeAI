@@ -4,11 +4,9 @@ import com.stocksense.app.data.model.HistoryPoint
 import com.stocksense.app.data.model.StockData
 
 enum class MarketDataRequirementType {
-    DELAYED_GLOBAL_QUOTE,
+    QUOTE,
     MARKET_METADATA,
     FUNDAMENTAL_ANALYSIS,
-    REALTIME_ASIA_QUOTE,
-    INTRADAY_HISTORY,
     DAILY_HISTORY
 }
 
@@ -45,13 +43,9 @@ data class MarketDataRequest(
 
     val normalizedInterval: String
         get() = interval?.takeIf { it.isNotBlank() } ?: when (requirementType) {
-            MarketDataRequirementType.INTRADAY_HISTORY -> "1m"
             MarketDataRequirementType.DAILY_HISTORY -> "1d"
             else -> "1d"
         }
-
-    val isAsianMarket: Boolean
-        get() = normalizedRegion in setOf("IN", "HK", "JP", "CN", "SG", "TW")
 
     val isUsMarket: Boolean
         get() = normalizedRegion == "US"

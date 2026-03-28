@@ -12,8 +12,6 @@ import com.stocksense.app.data.database.dao.TradeDao
 import com.stocksense.app.data.database.dao.UserLevelDao
 import com.stocksense.app.data.database.dao.WatchlistDao
 import com.stocksense.app.data.remote.MarketDataRouter
-import com.stocksense.app.data.remote.providers.FcsApiProvider
-import com.stocksense.app.data.remote.providers.ITickApiProvider
 import com.stocksense.app.data.remote.providers.YahooFinanceProvider
 import com.stocksense.app.data.repository.StockRepository
 import com.stocksense.app.engine.AgenticPipeline
@@ -60,8 +58,6 @@ class StockSenseApp : Application() {
     private val marketDataRouter: MarketDataRouter by lazy {
         MarketDataRouter(
             listOf(
-                FcsApiProvider(BuildConfig.FCS_API_KEY),
-                ITickApiProvider(BuildConfig.ITICK_API_KEY),
                 YahooFinanceProvider()
             )
         )

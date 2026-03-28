@@ -21,7 +21,7 @@ class YahooFinanceProvider(
 
     override fun supports(request: MarketDataRequest): Boolean =
         request.requirementType in setOf(
-            MarketDataRequirementType.DELAYED_GLOBAL_QUOTE,
+            MarketDataRequirementType.QUOTE,
             MarketDataRequirementType.DAILY_HISTORY,
             MarketDataRequirementType.MARKET_METADATA,
             MarketDataRequirementType.FUNDAMENTAL_ANALYSIS
@@ -29,7 +29,7 @@ class YahooFinanceProvider(
 
     override suspend fun fetch(request: MarketDataRequest): MarketDataPayload? {
         val stock = when (request.requirementType) {
-            MarketDataRequirementType.DELAYED_GLOBAL_QUOTE -> fetchQuote(request)
+            MarketDataRequirementType.QUOTE -> fetchQuote(request)
             MarketDataRequirementType.MARKET_METADATA,
             MarketDataRequirementType.FUNDAMENTAL_ANALYSIS -> fetchSummary(request)
             else -> null
