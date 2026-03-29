@@ -41,6 +41,16 @@ data class LlmSettingsUiState(
 
 private fun defaultModels() = listOf(
     ModelOption(
+        name = "SmolLM2 135M (Q4_K_M) · Nano",
+        description = "Bundleable with APK · no download needed · 135M params",
+        sizeLabel = "~80 MB",
+        mode = QualityMode.LITE,
+        downloadUrl = "https://huggingface.co/HuggingFaceTB/smollm2-135M-instruct-v0.2-GGUF/resolve/main/smollm2-135m-instruct-v0.2-q4_k_m.gguf",
+        recommendedRamGb = 1,
+        explanation = "Smallest model that can be bundled inside the APK (~80 MB). " +
+            "Place the GGUF at app/src/main/assets/models/ for zero-download local testing."
+    ),
+    ModelOption(
         name = "Phi-2 (Q4_K_M)",
         description = "Efficient, strong reasoning (2.7B, Q4_K_M)",
         sizeLabel = "~1.6 GB",

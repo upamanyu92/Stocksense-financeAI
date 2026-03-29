@@ -78,7 +78,7 @@ class MainActivity : ComponentActivity() {
         val portfolioViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
-                PortfolioViewModel(app.portfolioHoldingDao, app.tradeDao, app.stockRepository) as T
+                PortfolioViewModel(app.portfolioHoldingDao, app.tradeDao, app.stockRepository, app.modelManager.llmEngine) as T
         })[PortfolioViewModel::class.java]
 
         val chatViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {

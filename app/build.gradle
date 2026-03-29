@@ -1,9 +1,28 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
     id 'org.jetbrains.kotlin.plugin.serialization'
-    id 'kotlin-kapt'
+    id 'com.google.devtools.ksp'
 }
+
+// ── Bundle SmolLM2 model task ──────────────────────────────────────────────────
+// Run: ./gradlew downloadBundledModel
+// Places the GGUF in assets/models/ so it's embedded in the APK and requires
+// no network download on the device. copyBundledModelIfNeeded() in StockSenseApp
+// extracts it to filesDir/models/ on first launch.
+tasks.register('downloadBundledModel', Exec) {
+    def modelFile = file("src/main/assets/models/smollm2-135m-instruct-v0.2-q4_k_m.gguf")
+    def url = "https://huggingface.co/HuggingFaceTB/smollm2-135M-instruct-v0.2-GGUF/resolve/main/smollm2-135m-instruct-v0.2-q4_k_m.gguf"
+    onlyIf { !modelFile.exists() }
+    doFirst {
+        modelFile.parentFile.mkdirs()
+        println "Downloading SmolLM2-135M model (~80 MB)..."
+    }
+    commandLine 'curl', '-L', '--progress-bar', '-o', modelFile.absolutePath, url
+    doLast { println "Model downloaded: ${modelFile.absolutePath}" }
+}
+
 
 def keystorePropertiesFile = rootProject.file("keystore.properties")
 def keystoreProperties = new Properties()
@@ -46,13 +65,13 @@ ext.abiCodes = ['arm64-v8a': 1, 'x86_64': 2]
 
 android {
     namespace 'com.stocksense.app'
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.stocksense.app"
         // Android 13 (API 33) is the minimum supported version.
         minSdk 33
-        targetSdk 34
+        targetSdk 36
         versionCode appVersionCode
         versionName appVersionName
 
@@ -80,7 +99,7 @@ android {
     // Assign unique version codes per ABI split.
     applicationVariants.all { variant ->
         variant.outputs.each { output ->
-            def abiFilter = output.getFilter(com.android.build.OutputFile.ABI)
+            def abiFilter = output.getFilter("ABI")
             if (abiFilter != null) {
                 output.versionCodeOverride =
                         abiCodes.get(abiFilter, 0) * 1_000_000 + variant.versionCode
@@ -124,10 +143,6 @@ android {
         buildConfig true
     }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion '1.5.8'
-    }
-
     lint {
         abortOnError false
         checkReleaseBuilds true
@@ -137,6 +152,12 @@ android {
         resources {
             excludes += '/META-INF/{AL2.0,LGPL2.1}'
         }
+    }
+
+    // Keep GGUF model files uncompressed so AssetManager can read them via
+    // file descriptor without decompressing into memory.
+    aaptOptions {
+        noCompress "gguf"
     }
 
     // Native llama.cpp build – opt-in via gradle.properties or -P flag.
@@ -153,69 +174,68 @@ android {
 }
 
 // Room schema export directory for migration verification.
-kapt {
-    correctErrorTypes = true
-    arguments {
-        arg("room.schemaLocation", "$projectDir/schemas")
-    }
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
-    def composeBom = platform('androidx.compose:compose-bom:2024.02.00')
+    // Compose BOM 2024.12.01 — the last stable BOM compiled with Kotlin 2.1.x.
+    // 2026.03.01 required Kotlin 2.3.x (kotlin-stdlib-2.3.10 transitive dep) which
+    // is incompatible with our Kotlin 2.1.0 compiler.
+    def composeBom = platform('androidx.compose:compose-bom:2024.12.01')
     implementation composeBom
     androidTestImplementation composeBom
 
-    // Core Android
-    implementation 'androidx.core:core-ktx:1.12.0'
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
-    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0'
-    implementation 'androidx.activity:activity-compose:1.8.2'
-    implementation 'androidx.appcompat:appcompat:1.6.1'
+    // Core Android — versions verified compatible with Kotlin 2.1.0 (Dec 2024 era)
+    implementation 'androidx.core:core-ktx:1.15.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
+    implementation 'androidx.activity:activity-compose:1.9.3'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
 
-    // Jetpack Compose
+    // Jetpack Compose (versions resolved by the BOM above)
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.ui:ui-graphics'
     implementation 'androidx.compose.ui:ui-tooling-preview'
     implementation 'androidx.compose.material3:material3'
     implementation 'androidx.compose.material:material-icons-extended'
-    implementation 'androidx.navigation:navigation-compose:2.7.7'
+    implementation 'androidx.navigation:navigation-compose:2.8.5'
 
-    // Room Database
+    // Room Database — 2.6.1 with KSP; avoids kotlinx-serialization schema conflict
+    // introduced in Room 2.8.x (which uses kotlinx-serialization for schema files).
     implementation 'androidx.room:room-runtime:2.6.1'
     implementation 'androidx.room:room-ktx:2.6.1'
-    kapt 'androidx.room:room-compiler:2.6.1'
+    ksp 'androidx.room:room-compiler:2.6.1'
 
     // WorkManager
-    implementation 'androidx.work:work-runtime-ktx:2.9.0'
+    implementation 'androidx.work:work-runtime-ktx:2.10.0'
 
     // TensorFlow Lite
-    implementation 'org.tensorflow:tensorflow-lite:2.14.0'
-    implementation 'org.tensorflow:tensorflow-lite-support:0.4.4'
-    implementation 'org.tensorflow:tensorflow-lite-gpu:2.14.0'
-    implementation 'org.tensorflow:tensorflow-lite-gpu-api:2.14.0'
+    implementation 'org.tensorflow:tensorflow-lite:2.17.0'
+    implementation 'org.tensorflow:tensorflow-lite-support:0.5.0'
+    implementation 'org.tensorflow:tensorflow-lite-gpu:2.17.0'
+    implementation 'org.tensorflow:tensorflow-lite-gpu-api:2.17.0'
 
     // OkHttp – HTTP client for BitNet model downloads
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.squareup.okhttp3:okhttp:5.3.2'
 
-    // Kotlinx Serialization
-    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3'
+    // Kotlinx Serialization (compatible with Kotlin 2.1.0 and Room 2.6.1)
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3'
 
     // Coroutines
-    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
-
-    // Charts - Vico (Compose-native)
-    implementation 'com.patrykandpatrick.vico:compose-m3:1.13.1'
-    implementation 'com.patrykandpatrick.vico:core:1.13.1'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
 
     // DataStore Preferences
-    implementation 'androidx.datastore:datastore-preferences:1.0.0'
+    implementation 'androidx.datastore:datastore-preferences:1.1.1'
 
     // Testing
     testImplementation 'junit:junit:4.13.2'
-    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3'
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2'
     testImplementation 'androidx.room:room-testing:2.6.1'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    // Real XmlPullParser implementation for JVM unit tests (Android stubs don't provide one)
+    testImplementation 'net.sf.kxml:kxml2:2.3.0'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
     androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
     debugImplementation 'androidx.compose.ui:ui-tooling'
     debugImplementation 'androidx.compose.ui:ui-test-manifest'

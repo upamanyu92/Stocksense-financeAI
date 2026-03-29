@@ -257,6 +257,78 @@ class LLMInsightEngine(private val context: Context) {
 
     fun currentQualityMode(): QualityMode = currentMode ?: autoSelectMode()
 
+    /**
+     * Run an arbitrary prompt through the LLM and return the response.
+     * Falls back to [fallback] if the model is not loaded.
+     */
+    suspend fun generate(prompt: String, maxTokens: Int = 400, fallback: () -> String): String =
+        withContext(Dispatchers.IO) {
+            val startTime = System.currentTimeMillis()
+            val result = if (modelHandle != 0L && isNativeAvailable) {
+                val truncated = truncatePromptIfNeeded(prompt, maxChars = 1200)
+                try {
+                    val r = LlamaCpp.runInference(contextHandle, truncated, maxTokens = maxTokens)
+                    totalInferenceCount++
+                    r
+                } catch (e: Exception) {
+                    Log.e(TAG, "generate() inference error: ${e.message}")
+                    status = LlmStatus.TEMPLATE_FALLBACK
+                    fallback()
+                }
+            } else {
+                fallback()
+            }
+            lastInferenceTimeMs = System.currentTimeMillis() - startTime
+            result
+        }
+
+    /**
+     * Analyse a user's imported portfolio and return actionable recommendations.
+     * [portfolioSummary] is a compact text describing holdings, P&L, and categories.
+     */
+    suspend fun analyzePortfolio(portfolioSummary: String): String = withContext(Dispatchers.IO) {
+        val prompt = """
+You are SenseQuant, an expert financial advisor AI. Analyse the following portfolio and provide:
+1. TOP 3 recommended exits (sell reasons)
+2. TOP 3 holds (why to keep)
+3. TOP 2 rebalancing suggestions
+4. Overall risk rating (Low/Medium/High) with reason
+Be concise. Use ₹ for Indian currency.
+
+PORTFOLIO SUMMARY:
+$portfolioSummary
+
+ANALYSIS:""".trimIndent()
+
+        generate(prompt, maxTokens = 500) {
+            templatePortfolioAnalysis()
+        }
+    }
+
+    private fun templatePortfolioAnalysis(): String {
+        return """
+Portfolio Analysis by SenseQuant AI (Template Mode – install LLM model for deeper analysis):
+
+**Recommended Exits:**
+• Review holdings with unrealised P&L below -20% — evaluate if thesis has changed.
+• Sectoral/thematic funds with negative returns over 12 months may need rebalancing.
+• Small-cap positions >20% of portfolio add concentrated risk.
+
+**Strong Holds:**
+• Gold ETF holdings act as inflation hedge — maintain allocation.
+• Diversified large-cap / flexi-cap funds with positive XIRR — continue SIPs.
+• Holdings with positive 1Y return trajectory — stay the course.
+
+**Rebalancing Suggestions:**
+• Reduce small-cap allocation if >30% of equity; shift some to flexi-cap.
+• Increase gold/commodity exposure to 10-15% for better downside protection.
+
+**Risk Rating: Medium**
+Mixed equity + commodity allocation. Several sectoral bets increase concentration risk.
+Install the SenseQuant AI model for personalised, data-driven recommendations.
+""".trimIndent()
+    }
+
 
     suspend fun runLiveCheck(mode: QualityMode = currentQualityMode()): Boolean = withContext(Dispatchers.IO) {
         loadModel(mode)

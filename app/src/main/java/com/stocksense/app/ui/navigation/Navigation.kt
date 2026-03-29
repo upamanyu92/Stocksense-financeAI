@@ -80,6 +80,13 @@ fun StockSenseNavGraph(
                             label = { Text(screen.label) },
                             selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                             onClick = {
+                                // If already on Dashboard, refresh instead of re-navigating
+                                val alreadyHere = currentDestination
+                                    ?.hierarchy
+                                    ?.any { it.route == screen.route } == true
+                                if (screen.route == Screen.Dashboard.route && alreadyHere) {
+                                    dashboardViewModel.refresh()
+                                }
                                 navController.navigate(screen.route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true

@@ -7,12 +7,13 @@ import androidx.lifecycle.viewModelScope
 import com.stocksense.app.engine.BitNetModelDownloader
 import com.stocksense.app.engine.QualityMode
 import com.stocksense.app.preferences.UserPreferencesManager
+import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
+
 
 // ─── Setup model catalogue ───────────────────────────────────────────────────
 // ModelOption data class is defined in LlmSettingsViewModel.kt (same package).
@@ -20,6 +21,20 @@ import kotlin.math.roundToInt
 
 fun buildSetupModels(deviceRamGb: Int): List<ModelOption> {
     val all = listOf(
+        ModelOption(
+            name = "SmolLM2 135M (Q4_K_M) · Nano",
+            description = "Bundleable with APK · no download needed · 135M params",
+            sizeLabel = "~80 MB",
+            mode = QualityMode.LITE,
+            downloadUrl = "https://huggingface.co/HuggingFaceTB/smollm2-135M-instruct-v0.2-GGUF/resolve/main/smollm2-135m-instruct-v0.2-q4_k_m.gguf",
+            recommendedRamGb = 1,
+            explanation = "SmolLM2-135M is the only model small enough (~80 MB) to ship inside the " +
+                "APK itself — zero network required at first launch. It handles basic finance Q&A, " +
+                "price lookups, and alert summaries with low latency. Quality is intentionally limited; " +
+                "treat it as a fast local test harness rather than a production model. " +
+                "To bundle it: download the GGUF and place it at " +
+                "app/src/main/assets/models/smollm2-135m-instruct-v0.2-q4_k_m.gguf before building."
+        ),
         ModelOption(
             name = "TinyLlama 1.1B (Q4_K_M)",
             description = "Ultra-light · fastest inference · 1.1B params",
@@ -105,6 +120,15 @@ class InitialSetupViewModel(
         val models = buildSetupModels(ram)
         val recIdx = models.indexOfFirst { it.recommended }.coerceAtLeast(0)
         _uiState.update { it.copy(availableModels = models, selectedModelIndex = recIdx, deviceRamGb = ram) }
+
+        // Auto-complete setup if the SmolLM2 model was bundled inside the APK and already copied.
+        viewModelScope.launch {
+            val bundledFile = File(downloader.modelsDir, BitNetModelDownloader.BUNDLED_MODEL_FILE)
+            if (bundledFile.exists() && bundledFile.length() > 0) {
+                prefsManager.markInitialSetupComplete()
+                _uiState.update { it.copy(setupComplete = true) }
+            }
+        }
     }
 
     fun selectModel(idx: Int) = _uiState.update { it.copy(selectedModelIndex = idx) }
@@ -125,32 +149,48 @@ class InitialSetupViewModel(
             var lastSpeedDisplay = "—"
             var lastEtaDisplay = "—"
 
-            val success = downloader.downloadWithProgress(model.downloadUrl) {
-                progress: Float, bytesDownloaded: Long, totalBytes: Long ->
+            try {
+                val success = downloader.downloadWithProgress(model.downloadUrl) {
+                    progress: Float, bytesDownloaded: Long, totalBytes: Long ->
 
-                val now = System.currentTimeMillis()
-                val elapsedSec = (now - lastTime) / 1000.0
-                if (elapsedSec >= 0.5) {
-                    val speedMBps = (bytesDownloaded - lastBytes).toDouble() / elapsedSec / 1_048_576
-                    val etaSec = if (speedMBps > 0.001 && totalBytes > 0)
-                        ((totalBytes - bytesDownloaded) / (speedMBps * 1_048_576)).roundToInt() else -1
-                    lastSpeedDisplay = if (speedMBps > 0.01) String.format(Locale.US, "%.2f", speedMBps) else "—"
-                    lastEtaDisplay = formatEta(etaSec)
-                    lastBytes = bytesDownloaded
-                    lastTime = now
+                    val now = System.currentTimeMillis()
+                    val elapsedSec = (now - lastTime) / 1000.0
+                    // Throttle UI updates to at most every 250 ms to avoid flooding
+                    // the StateFlow with thousands of updates/sec on fast connections.
+                    if (elapsedSec >= 0.25) {
+                        val speedMBps = (bytesDownloaded - lastBytes).toDouble() / elapsedSec / 1_048_576
+                        // Use coerceIn instead of roundToInt() to avoid ArithmeticException
+                        // when the calculated seconds would exceed Int range.
+                        val etaSec: Int = if (speedMBps > 0.001 && totalBytes > 0) {
+                            val rawSec = (totalBytes - bytesDownloaded) / (speedMBps * 1_048_576)
+                            rawSec.toLong().coerceIn(-1L, Int.MAX_VALUE.toLong()).toInt()
+                        } else -1
+                        lastSpeedDisplay = if (speedMBps > 0.01) String.format(Locale.US, "%.2f", speedMBps) else "—"
+                        lastEtaDisplay = formatEta(etaSec)
+                        lastBytes = bytesDownloaded
+                        lastTime = now
+                        _uiState.update {
+                            it.copy(downloadProgress = progress,
+                                downloadSpeed = lastSpeedDisplay, eta = lastEtaDisplay)
+                        }
+                    }
                 }
-                _uiState.update {
-                    it.copy(downloadProgress = progress, downloadSpeed = lastSpeedDisplay, eta = lastEtaDisplay)
-                }
-            }
 
-            if (success) {
-                prefsManager.markInitialSetupComplete()
-                _uiState.update { it.copy(isDownloading = false, downloadProgress = 1f, setupComplete = true) }
-            } else {
+                if (success) {
+                    prefsManager.markInitialSetupComplete()
+                    _uiState.update { it.copy(isDownloading = false, downloadProgress = 1f, setupComplete = true) }
+                } else {
+                    _uiState.update {
+                        it.copy(isDownloading = false,
+                            downloadError = "Download failed. Check your internet connection and try again.")
+                    }
+                }
+            } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(isDownloading = false,
-                        downloadError = "Download failed. Check your internet connection and try again.")
+                    it.copy(
+                        isDownloading = false,
+                        downloadError = "Download error: ${e.message ?: "Unknown error. Please try again."}"
+                    )
                 }
             }
         }

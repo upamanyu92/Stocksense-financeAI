@@ -1,16 +1,56 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <!-- Neon-green stylised chart arrow representing StockSense -->
-    <path
-        android:fillColor="#3DF58C"
-        android:pathData="M30,72 L50,42 L62,56 L78,32"
-        android:strokeWidth="4"
-        android:strokeColor="#3DF58C" />
-    <path
-        android:fillColor="#3DF58C"
-        android:pathData="M70,32 L78,32 L78,40" />
-</vector>
+<!-- SenseQuant launcher icon foreground – uses stock_sense_logo.png with 3-D layering -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Layer 1: depth shadow (slightly offset down-right) -->
+    <item android:top="8dp" android:left="8dp" android:right="4dp" android:bottom="4dp">
+        <shape android:shape="oval">
+            <solid android:color="#33000000"/>
+            <size android:width="72dp" android:height="72dp"/>
+        </shape>
+    </item>
+
+    <!-- Layer 2: outer neon glow ring -->
+    <item android:top="4dp" android:left="4dp" android:right="4dp" android:bottom="4dp">
+        <shape android:shape="oval">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="50%"
+                android:startColor="#3300E5FF"
+                android:endColor="#0000C5FF"/>
+            <size android:width="72dp" android:height="72dp"/>
+        </shape>
+    </item>
+
+    <!-- Layer 3: subtle green bottom highlight for 3-D lift -->
+    <item android:top="10dp" android:left="6dp" android:right="6dp" android:bottom="4dp">
+        <shape android:shape="oval">
+            <gradient
+                android:type="linear"
+                android:angle="90"
+                android:startColor="#553DF58C"
+                android:endColor="#00000000"/>
+            <size android:width="64dp" android:height="64dp"/>
+        </shape>
+    </item>
+
+    <!-- Layer 4: the actual logo bitmap -->
+    <item android:top="8dp" android:left="8dp" android:right="8dp" android:bottom="8dp">
+        <bitmap
+            android:src="@drawable/ic_app_logo"
+            android:gravity="center"
+            android:scaleType="centerInside"/>
+    </item>
+
+    <!-- Layer 5: specular highlight (top-left shine) -->
+    <item android:top="6dp" android:left="6dp" android:right="36dp" android:bottom="50dp">
+        <shape android:shape="oval">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="100%"
+                android:startColor="#44FFFFFF"
+                android:endColor="#00FFFFFF"/>
+        </shape>
+    </item>
+
+</layer-list>

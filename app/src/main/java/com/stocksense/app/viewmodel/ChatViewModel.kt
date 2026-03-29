@@ -79,6 +79,8 @@ class ChatViewModel(
                     emptyList()
                 }
 
+                // Always call llmEngine.chat() — it uses template fallback internally
+                // when the model is not loaded, so the user always gets a useful response.
                 val aiResponseText = llmEngine.chat(
                     userMessage = text,
                     symbol = symbol ?: "GENERAL",

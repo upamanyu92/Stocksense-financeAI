@@ -63,9 +63,11 @@ class InsightsViewModel(
                 }
                 val prices = history.map { it.close }
                 modelManager.ensureLoaded()
+                val mode = modelManager.llmEngine.currentQualityMode()
+                // Always call generateInsight() — it uses template fallback internally
+                // when the model is not loaded, so the user always gets a useful response.
                 val insight = modelManager.llmEngine.generateInsight(prediction, prices)
                 val metrics = modelManager.llmEngine.getMetrics()
-                val mode = modelManager.llmEngine.currentQualityMode()
                 val status = metrics.status
                 modelManager.markUsed()
                 _uiState.update {
@@ -100,6 +102,8 @@ class InsightsViewModel(
                 }
                 val prices = history.map { it.close }
                 modelManager.ensureLoaded()
+                // Always call llmEngine.chat() — it uses template fallback internally
+                // when the model is not loaded, so the user always gets a useful response.
                 val response = modelManager.llmEngine.chat(userMessage, symbol, prices)
                 modelManager.markUsed()
                 val metrics = modelManager.llmEngine.getMetrics()
@@ -136,3 +140,4 @@ class InsightsViewModel(
         _uiState.update { it.copy(llmStatus = status, metrics = metrics) }
     }
 }
+

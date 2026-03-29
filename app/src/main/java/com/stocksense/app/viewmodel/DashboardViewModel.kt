@@ -201,11 +201,12 @@ class DashboardViewModel(
         KillCriteriaNotice(
             title = "Cooldown active",
             body = "We’re holding orders for 15 minutes to avoid revenge trades during volatility.",
-            trustSignal = "Risk control by StockSense AI"
+            trustSignal = "Risk control by SenseQuant AI"
         )
     )
 
     /** Basic sarcasm detector tailored to finance forums. */
+    @Suppress("unused")
     fun isSarcastic(text: String): Boolean {
         val lowered = text.lowercase()
         val sarcasmHints = listOf("/s", "sure, what a deal", "to the moon...not", "great, lost it all")

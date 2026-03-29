@@ -55,11 +55,11 @@ fun DashboardScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Image(
-                            painter = painterResource(id = R.drawable.stocksense_logo),
-                            contentDescription = "StockSense Logo",
-                            modifier = Modifier.size(28.dp)
+                            painter = painterResource(id = R.drawable.ic_app_logo),
+                            contentDescription = "SenseQuant Logo",
+                            modifier = Modifier.size(32.dp)
                         )
-                        Text("StockSense", fontWeight = FontWeight.SemiBold)
+                        Text("SenseQuant", fontWeight = FontWeight.SemiBold)
                     }
                 },
                 actions = {
@@ -147,7 +147,7 @@ private fun HeaderBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("StockSense Command Center", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Text("SenseQuant Command Center", fontWeight = FontWeight.Bold, fontSize = 20.sp)
             }
             IconButton(onClick = onProfileClick) {
                 Icon(
@@ -210,7 +210,7 @@ private fun HeroPortfolioCard(snapshot: PortfolioSnapshot) {
                     fontWeight = FontWeight.ExtraBold
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    PnlPill(label = "Daily P&L", value = snapshot.dailyPnl, percent = snapshot.dailyPercent)
+                    PnlPill(value = snapshot.dailyPnl, percent = snapshot.dailyPercent)
                     LevelPill(level = snapshot.level, streak = snapshot.streakDays)
                 }
             }
@@ -219,7 +219,7 @@ private fun HeroPortfolioCard(snapshot: PortfolioSnapshot) {
 }
 
 @Composable
-private fun PnlPill(label: String, value: Double, percent: Double) {
+private fun PnlPill(value: Double, percent: Double) {
     val positive = value >= 0
     val color = if (positive) NeonGreen else SoftRed
     Surface(
@@ -227,7 +227,7 @@ private fun PnlPill(label: String, value: Double, percent: Double) {
         shape = RoundedCornerShape(14.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text(label, color = MutedGrey, fontSize = 12.sp)
+            Text("Daily P&L", color = MutedGrey, fontSize = 12.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     text = "₹${"%,.0f".format(value)}",
