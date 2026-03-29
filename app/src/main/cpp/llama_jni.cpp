@@ -170,7 +170,7 @@ Java_com_stocksense_app_engine_LlamaCpp_runInference(
 
         // Convert token to text
         char buf[256];
-        int len = llama_token_to_piece(vocab, new_token, buf, sizeof(buf), /* special */ false, /* type */ LLAMA_TOKEN_TYPE_UNDEFINED);
+        int len = llama_token_to_piece(model, new_token, buf, sizeof(buf));
         if (len > 0) {
             result.append(buf, len);
         }

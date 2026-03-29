@@ -199,12 +199,6 @@ fun LlmSettingsScreen(
                         color = MutedGrey,
                         fontSize = 14.sp
                     )
-                    Text(
-                        "Select a GGUF model file from your device storage.",
-                        color = MutedGrey,
-                        fontSize = 13.sp
-                    )
-
                     Button(
                         onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
                         enabled = uiState.isNativeAvailable && !uiState.isImporting,
