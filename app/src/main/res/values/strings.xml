@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">StockSense</string>
+    <string name="app_name">SenseQuant</string>
     <string name="dashboard">Dashboard</string>
     <string name="predictions">Predictions</string>
     <string name="insights">Insights</string>

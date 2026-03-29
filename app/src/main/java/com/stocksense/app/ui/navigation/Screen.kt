@@ -2,6 +2,7 @@ package com.stocksense.app.ui.navigation
 
 import androidx.annotation.DrawableRes
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.stocksense.app.R
@@ -15,9 +16,8 @@ sealed class Screen(
     object Login : Screen("login", "Login", icon = Icons.Default.Lock)
     object Register : Screen("register", "Register", icon = Icons.Default.PersonAdd)
     object Dashboard : Screen("dashboard", "Dashboard", icon = Icons.Default.Home)
-    object Markets : Screen("markets", "Markets", icon = Icons.Default.ShowChart)
     object Watchlist : Screen("watchlist", "Watchlist", icon = Icons.Default.Star)
-    object Prediction : Screen("prediction/{symbol}", "Predict", icon = Icons.Default.TrendingUp) {
+    object Prediction : Screen("prediction/{symbol}", "Predict", icon = Icons.AutoMirrored.Filled.TrendingUp) {
         fun createRoute(symbol: String) = "prediction/$symbol"
     }
     object Insights : Screen("insights/{symbol}", "Insights", icon = Icons.Default.Lightbulb) {
@@ -25,7 +25,7 @@ sealed class Screen(
     }
     object Alerts : Screen("alerts", "Alerts", icon = Icons.Default.NotificationsActive)
     object Portfolio : Screen("portfolio", "Portfolio", icon = Icons.Default.Work)
-    object Chat : Screen("chat", "senseAI", iconRes = R.drawable.ic_app_logo)
+    object Chat : Screen("chat", "SenseAI", iconRes = R.drawable.ic_app_logo)
     object Profile : Screen("profile", "Profile", icon = Icons.Default.Person)
     object LlmSettings : Screen("llm_settings", "LLM Settings", icon = Icons.Default.Settings)
     object Feedback : Screen("feedback", "Feedback", icon = Icons.Default.Email)
@@ -37,6 +37,7 @@ sealed class Screen(
 val bottomNavItems = listOf(
     Screen.Dashboard,
     Screen.Watchlist,
+    Screen.Portfolio,
     Screen.Chat,
     Screen.Alerts,
     Screen.Profile

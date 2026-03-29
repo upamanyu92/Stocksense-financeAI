@@ -49,7 +49,16 @@ class BitNetModelDownloader(private val context: Context) {
 
         const val IMPORTED_MODEL_FILE_NAME = "imported_model.gguf"
 
-        /** Map of quality mode to (file-name, download-URL). 
+        /**
+         * Asset path for the optional nano model bundled inside the APK.
+         * Place the GGUF file at:
+         *   app/src/main/assets/models/smollm2-135m-instruct-v0.2-q4_k_m.gguf
+         * and build the APK — no download required.
+         */
+        const val BUNDLED_MODEL_ASSET = "models/smollm2-135m-instruct-v0.2-q4_k_m.gguf"
+        const val BUNDLED_MODEL_FILE  = "smollm2-135m-instruct-v0.2-q4_k_m.gguf"
+
+        /** Map of quality mode to (file-name, download-URL).
          *  Note: All quality modes use the same model file since only one variant is available.
          */
         val MODEL_CATALOGUE: Map<QualityMode, Pair<String, String>> = mapOf(
@@ -159,6 +168,39 @@ class BitNetModelDownloader(private val context: Context) {
     }
 
     /**
+     * If this APK was built with a bundled nano GGUF at [BUNDLED_MODEL_ASSET],
+     * copy it to [modelsDir] once so the LLM engine can load it without a
+     * network download.  Safe to call every startup — skips the copy if the
+     * target file already exists.
+     *
+     * Returns `true` if the model is now on disk (either already was, or just
+     * copied), `false` if no bundled asset was found in this build.
+     */
+    suspend fun copyBundledModelIfNeeded(): Boolean = withContext(Dispatchers.IO) {
+        val target = File(modelsDir, BUNDLED_MODEL_FILE)
+        if (target.exists() && target.length() > 0) {
+            Log.i(TAG, "Bundled nano model already on disk: ${target.name}")
+            return@withContext true
+        }
+        return@withContext try {
+            context.assets.open(BUNDLED_MODEL_ASSET).use { input ->
+                val tmp = File(modelsDir, "$BUNDLED_MODEL_FILE.tmp")
+                FileOutputStream(tmp).use { input.copyTo(it, bufferSize = 65_536) }
+                if (!tmp.renameTo(target)) {
+                    tmp.delete()
+                    return@withContext false
+                }
+            }
+            Log.i(TAG, "Bundled nano model copied → ${target.absolutePath} (${target.length()} B)")
+            true
+        } catch (e: IOException) {
+            // Asset not included in this build — expected for release builds.
+            Log.d(TAG, "No bundled nano model in assets (${e.message})")
+            false
+        }
+    }
+
+    /**
      * Download a model from an arbitrary [url], storing it under [modelsDir] using the
      * last URL path segment as the filename.
      *
@@ -220,7 +262,7 @@ class BitNetModelDownloader(private val context: Context) {
             Log.i(TAG, "Download complete: ${target.absolutePath} (${target.length()} B)")
             onProgress(1f, target.length(), target.length())
             return@withContext true
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             Log.e(TAG, "downloadWithProgress error: ${e.message}")
             tmpFile.delete()
             return@withContext false
