@@ -67,9 +67,9 @@ class InsightsViewModel(
                 // Always call generateInsight() — it uses template fallback internally
                 // when the model is not loaded, so the user always gets a useful response.
                 val insight = modelManager.llmEngine.generateInsight(prediction, prices)
-                modelManager.markUsed()
-                val status = modelManager.llmEngine.status
                 val metrics = modelManager.llmEngine.getMetrics()
+                val status = metrics.status
+                modelManager.markUsed()
                 _uiState.update {
                     it.copy(
                         insight = insight,
@@ -106,8 +106,8 @@ class InsightsViewModel(
                 // when the model is not loaded, so the user always gets a useful response.
                 val response = modelManager.llmEngine.chat(userMessage, symbol, prices)
                 modelManager.markUsed()
-                val status = modelManager.llmEngine.status
                 val metrics = modelManager.llmEngine.getMetrics()
+                val status = metrics.status
                 val withResponse = (_uiState.value.chatMessages + ChatMessage(response, isUser = false)).takeLast(MAX_CHAT_HISTORY)
                 _uiState.update {
                     it.copy(
@@ -139,6 +139,5 @@ class InsightsViewModel(
         val metrics = modelManager.llmEngine.getMetrics()
         _uiState.update { it.copy(llmStatus = status, metrics = metrics) }
     }
-
 }
 
