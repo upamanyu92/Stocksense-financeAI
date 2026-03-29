@@ -108,10 +108,18 @@ fun LlmSettingsScreen(
                         LlmStatus.LOADING -> "Loading model into memory…"
                         LlmStatus.LOAD_FAILED -> "Failed to load – try reloading or a different model"
                         LlmStatus.MODEL_NOT_DOWNLOADED -> "No model downloaded – download or import one below"
-                        LlmStatus.NATIVE_UNAVAILABLE -> "Native library not available – using template fallback"
+                        LlmStatus.NATIVE_UNAVAILABLE -> "This APK does not include the native llama runtime"
                         LlmStatus.TEMPLATE_FALLBACK -> "Using template-based responses (no LLM)"
                     }
                     Text(statusText, color = MutedGrey, fontSize = 14.sp)
+
+                    if (!uiState.isNativeAvailable) {
+                        Text(
+                            "Downloads, imports, reloads, and live checks are disabled until you install a build with native llama support.",
+                            color = SoftRed,
+                            fontSize = 12.sp
+                        )
+                    }
 
                     if (uiState.currentModelName.isNotBlank()) {
                         Text("Model: ${uiState.currentModelName}", color = ElectricBlue, fontSize = 13.sp)
@@ -129,6 +137,7 @@ fun LlmSettingsScreen(
                         if (uiState.status == LlmStatus.LOAD_FAILED || uiState.status == LlmStatus.MODEL_NOT_DOWNLOADED) {
                             OutlinedButton(
                                 onClick = { viewModel.reloadModel() },
+                                enabled = uiState.isNativeAvailable,
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = ElectricBlue)
                             ) {
                                 Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -138,7 +147,7 @@ fun LlmSettingsScreen(
                         }
                         OutlinedButton(
                             onClick = { viewModel.runLiveCheck() },
-                            enabled = !uiState.isRunningLiveCheck,
+                            enabled = uiState.isNativeAvailable && !uiState.isRunningLiveCheck,
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonGreen)
                         ) {
                             if (uiState.isRunningLiveCheck) {
@@ -182,19 +191,17 @@ fun LlmSettingsScreen(
                 ) {
                     Text("Import Local Model", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                     Text(
-                        "If model download fails, you can import a compatible GGUF model file from your device. Download a BitNet GGUF model from a trusted source (e.g., HuggingFace or your own backup) and select it here.",
+                        if (uiState.isNativeAvailable) {
+                            "If model download fails, you can import a compatible GGUF model file from your device. Download a BitNet GGUF model from a trusted source (for example HuggingFace or your own backup) and select it here."
+                        } else {
+                            "Import is unavailable in builds without the native llama runtime"
+                        },
                         color = MutedGrey,
                         fontSize = 14.sp
                     )
-                    Text(
-                        "Select a GGUF model file from your device storage.",
-                        color = MutedGrey,
-                        fontSize = 13.sp
-                    )
-
                     Button(
                         onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
-                        enabled = !uiState.isImporting,
+                        enabled = uiState.isNativeAvailable && !uiState.isImporting,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
@@ -234,7 +241,11 @@ fun LlmSettingsScreen(
                 ) {
                     Text("Download Model", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                     Text(
-                        "Choose a compatible model to download",
+                        if (uiState.isNativeAvailable) {
+                            "Choose a compatible model to download"
+                        } else {
+                            "Downloading is disabled because this build cannot load local GGUF models"
+                        },
                         color = MutedGrey,
                         fontSize = 14.sp
                     )
@@ -310,7 +321,7 @@ fun LlmSettingsScreen(
 
                     Button(
                         onClick = { viewModel.downloadModel(selectedMode) },
-                        enabled = !uiState.isDownloading,
+                        enabled = uiState.isNativeAvailable && !uiState.isDownloading,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(

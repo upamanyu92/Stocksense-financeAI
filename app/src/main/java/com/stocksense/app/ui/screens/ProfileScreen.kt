@@ -262,10 +262,10 @@ fun ProfileScreen(
                     val (statusText, statusColor) = when (uiState.llmStatus) {
                         LlmStatus.READY -> "Active and ready" to Color(0xFF2E7D32)
                         LlmStatus.LOADING -> "Loading model into memory" to Color(0xFFF9A825)
-                        LlmStatus.MODEL_NOT_DOWNLOADED -> "Model not downloaded yet" to MaterialTheme.colorScheme.error
-                        LlmStatus.NATIVE_UNAVAILABLE -> "Native llama runtime not enabled in this build" to MaterialTheme.colorScheme.error
+                        LlmStatus.MODEL_NOT_DOWNLOADED -> "Template mode until a model is downloaded" to Color(0xFFFF9800)
+                        LlmStatus.NATIVE_UNAVAILABLE -> "Template mode only — this build has no native llama runtime" to Color(0xFFFF9800)
                         LlmStatus.LOAD_FAILED -> "Model failed to load on this device" to MaterialTheme.colorScheme.error
-                        LlmStatus.TEMPLATE_FALLBACK -> "Fallback mode only — local agent inactive" to MaterialTheme.colorScheme.error
+                        LlmStatus.TEMPLATE_FALLBACK -> "Template mode only — local agent inactive" to Color(0xFF2196F3)
                     }
 
                     Surface(
