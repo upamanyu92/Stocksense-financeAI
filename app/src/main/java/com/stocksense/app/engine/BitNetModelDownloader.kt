@@ -262,8 +262,12 @@ class BitNetModelDownloader(private val context: Context) {
             Log.i(TAG, "Download complete: ${target.absolutePath} (${target.length()} B)")
             onProgress(1f, target.length(), target.length())
             return@withContext true
+        } catch (e: IOException) {
+            Log.e(TAG, "downloadWithProgress I/O error: ${e.message}")
+            tmpFile.delete()
+            return@withContext false
         } catch (e: Exception) {
-            Log.e(TAG, "downloadWithProgress error: ${e.message}")
+            Log.e(TAG, "downloadWithProgress unexpected error: ${e.message}")
             tmpFile.delete()
             return@withContext false
         }
