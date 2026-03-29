@@ -18,7 +18,8 @@ data class UserPreferences(
     val notificationsEnabled: Boolean = true,
     val darkThemeEnabled: Boolean = true,
     val defaultQualityMode: String = "BALANCED",
-    val isLoggedIn: Boolean = false
+    val isLoggedIn: Boolean = false,
+    val isInitialSetupComplete: Boolean = false
 )
 
 class UserPreferencesManager(private val context: Context) {
@@ -31,6 +32,7 @@ class UserPreferencesManager(private val context: Context) {
         val DARK_THEME = booleanPreferencesKey("dark_theme")
         val DEFAULT_QUALITY_MODE = stringPreferencesKey("default_quality_mode")
         val IS_LOGGED_IN = booleanPreferencesKey("is_logged_in")
+        val INITIAL_SETUP_COMPLETE = booleanPreferencesKey("initial_setup_complete")
     }
 
     val userPreferences: Flow<UserPreferences> = context.dataStore.data
@@ -42,14 +44,17 @@ class UserPreferencesManager(private val context: Context) {
                 notificationsEnabled = prefs[Keys.NOTIFICATIONS_ENABLED] ?: true,
                 darkThemeEnabled = prefs[Keys.DARK_THEME] ?: true,
                 defaultQualityMode = prefs[Keys.DEFAULT_QUALITY_MODE] ?: "BALANCED",
-                isLoggedIn = prefs[Keys.IS_LOGGED_IN] ?: false
+                isLoggedIn = prefs[Keys.IS_LOGGED_IN] ?: false,
+                isInitialSetupComplete = prefs[Keys.INITIAL_SETUP_COMPLETE] ?: false
             )
         }
 
+    @Suppress("unused")
     suspend fun updateDisplayName(name: String) {
         context.dataStore.edit { it[Keys.DISPLAY_NAME] = name }
     }
 
+    @Suppress("unused")
     suspend fun updateEmail(email: String) {
         context.dataStore.edit { it[Keys.EMAIL] = email }
     }
@@ -85,6 +90,7 @@ class UserPreferencesManager(private val context: Context) {
     }
 
     /** Mark user as logged in (after PIN validation). */
+    @Suppress("UNUSED_PARAMETER")
     suspend fun login(email: String) {
         context.dataStore.edit { prefs ->
             prefs[Keys.IS_LOGGED_IN] = true
@@ -105,4 +111,13 @@ class UserPreferencesManager(private val context: Context) {
             prefs[Keys.IS_LOGGED_IN] = false
         }
     }
+
+    suspend fun markInitialSetupComplete() {
+        context.dataStore.edit { it[Keys.INITIAL_SETUP_COMPLETE] = true }
+    }
+
+    suspend fun isInitialSetupComplete(): Boolean =
+        context.dataStore.data.catch { emit(emptyPreferences()) }
+            .map { it[Keys.INITIAL_SETUP_COMPLETE] ?: false }
+            .first()
 }

@@ -49,19 +49,21 @@ class BitNetModelDownloader(private val context: Context) {
 
         const val IMPORTED_MODEL_FILE_NAME = "imported_model.gguf"
 
-        /** Map of quality mode to (file-name, download-URL). */
+        /** Map of quality mode to (file-name, download-URL). 
+         *  Note: All quality modes use the same model file since only one variant is available.
+         */
         val MODEL_CATALOGUE: Map<QualityMode, Pair<String, String>> = mapOf(
             QualityMode.LITE to Pair(
-                "bitnet-b1.58-2B-4T-TQ1_0.gguf",
-                "$HF_BASE/bitnet-b1.58-2B-4T-TQ1_0.gguf"
+                "ggml-model-i2_s.gguf",
+                "$HF_BASE/ggml-model-i2_s.gguf"
             ),
             QualityMode.BALANCED to Pair(
-                "bitnet-b1.58-2B-4T-TQ2_0.gguf",
-                "$HF_BASE/bitnet-b1.58-2B-4T-TQ2_0.gguf"
+                "ggml-model-i2_s.gguf",
+                "$HF_BASE/ggml-model-i2_s.gguf"
             ),
             QualityMode.PRO to Pair(
-                "bitnet-b1.58-2B-4T-Q4_0.gguf",
-                "$HF_BASE/bitnet-b1.58-2B-4T-Q4_0.gguf"
+                "ggml-model-i2_s.gguf",
+                "$HF_BASE/ggml-model-i2_s.gguf"
             )
         )
     }
@@ -154,5 +156,74 @@ class BitNetModelDownloader(private val context: Context) {
     fun clearModels() {
         modelsDir.listFiles()?.forEach { it.delete() }
         Log.i(TAG, "All model files deleted")
+    }
+
+    /**
+     * Download a model from an arbitrary [url], storing it under [modelsDir] using the
+     * last URL path segment as the filename.
+     *
+     * [onProgress] is called on every buffer write with:
+     *   - progress  : 0.0–1.0 (or 0 if content-length unknown)
+     *   - bytesDownloaded : cumulative bytes written so far
+     *   - totalBytes      : full file size (-1 if unknown)
+     *
+     * Returns `true` on success, `false` on any error.
+     */
+    suspend fun downloadWithProgress(
+        url: String,
+        onProgress: (progress: Float, bytesDownloaded: Long, totalBytes: Long) -> Unit
+    ): Boolean = withContext(Dispatchers.IO) {
+        val fileName = url.substringAfterLast("/").ifBlank { "model.gguf" }
+        val target = File(modelsDir, fileName)
+
+        if (target.exists() && target.length() > 0) {
+            Log.i(TAG, "Model already cached: ${target.absolutePath}")
+            onProgress(1f, target.length(), target.length())
+            return@withContext true
+        }
+
+        Log.i(TAG, "Downloading from $url → $fileName")
+        val tmpFile = File(modelsDir, "$fileName.tmp")
+
+        try {
+            val request = Request.Builder().url(url).build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Log.e(TAG, "HTTP ${response.code} for $url")
+                    return@withContext false
+                }
+                val body = response.body ?: return@withContext false
+                val contentLength = body.contentLength()   // -1 if unknown
+                var totalRead = 0L
+
+                FileOutputStream(tmpFile).use { fos ->
+                    body.byteStream().use { input ->
+                        val buffer = ByteArray(8192)
+                        var bytesRead: Int
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            fos.write(buffer, 0, bytesRead)
+                            totalRead += bytesRead
+                            val progress =
+                                if (contentLength > 0) totalRead.toFloat() / contentLength else 0f
+                            onProgress(progress, totalRead, contentLength)
+                        }
+                    }
+                }
+            }
+
+            if (!tmpFile.renameTo(target)) {
+                Log.e(TAG, "Rename failed for $fileName")
+                tmpFile.delete()
+                return@withContext false
+            }
+
+            Log.i(TAG, "Download complete: ${target.absolutePath} (${target.length()} B)")
+            onProgress(1f, target.length(), target.length())
+            return@withContext true
+        } catch (e: IOException) {
+            Log.e(TAG, "downloadWithProgress error: ${e.message}")
+            tmpFile.delete()
+            return@withContext false
+        }
     }
 }

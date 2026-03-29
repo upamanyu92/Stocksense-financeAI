@@ -2,7 +2,6 @@ package com.stocksense.app.engine
 
 import android.app.ActivityManager
 import android.content.Context
-import android.os.Build
 import android.util.Log
 import com.stocksense.app.data.model.PredictionResult
 import kotlinx.coroutines.Dispatchers
@@ -256,12 +255,8 @@ class LLMInsightEngine(private val context: Context) {
         response
     }
 
-    fun isModelLoaded(): Boolean = modelHandle != 0L || !isNativeAvailable
-
     fun currentQualityMode(): QualityMode = currentMode ?: autoSelectMode()
 
-    /** @return true if the BitNet model file for the auto-selected mode is on disk. */
-    fun isModelDownloaded(): Boolean = preferredModelFile(autoSelectMode()).exists()
 
     suspend fun runLiveCheck(mode: QualityMode = currentQualityMode()): Boolean = withContext(Dispatchers.IO) {
         loadModel(mode)
@@ -346,9 +341,9 @@ Insight:""".trimIndent()
     }
 
     private fun tryLoadNativeLib(): Boolean = try {
-        System.loadLibrary("llama")
+        System.loadLibrary("llama_jni")
         true
-    } catch (e: UnsatisfiedLinkError) {
+    } catch (_: UnsatisfiedLinkError) {
         Log.i(TAG, "llama native library not linked – template mode active")
         false
     }

@@ -1,5 +1,7 @@
 package com.stocksense.app.ui.screens
 
+import android.app.ActivityManager
+import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -15,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,13 +33,19 @@ fun LlmSettingsScreen(
     onBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var selectedMode by remember { mutableStateOf(QualityMode.BALANCED) }
+    val context = LocalContext.current
+    var selectedMode by remember { mutableStateOf(uiState.availableModels.firstOrNull()?.mode ?: QualityMode.LITE) }
     var showDropdown by remember { mutableStateOf(false) }
+
+    val deviceRamGb = getDeviceRamGb(context)
+    val bestModel = uiState.availableModels
+        .filter { deviceRamGb >= it.recommendedRamGb }
+        .maxByOrNull { it.recommendedRamGb } ?: uiState.availableModels.first()
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
-        uri?.let { viewModel.importLocalModel(it) }
+        uri?.let { viewModel.importLocalModel(context, it) }
     }
 
     Scaffold(
@@ -183,12 +192,17 @@ fun LlmSettingsScreen(
                     Text("Import Local Model", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                     Text(
                         if (uiState.isNativeAvailable) {
-                            "Select a GGUF model file from your device storage"
+                            "If model download fails, you can import a compatible GGUF model file from your device. Download a BitNet GGUF model from a trusted source (for example HuggingFace or your own backup) and select it here."
                         } else {
                             "Import is unavailable in builds without the native llama runtime"
                         },
                         color = MutedGrey,
                         fontSize = 14.sp
+                    )
+                    Text(
+                        "Select a GGUF model file from your device storage.",
+                        color = MutedGrey,
+                        fontSize = 13.sp
                     )
 
                     Button(
@@ -341,6 +355,42 @@ fun LlmSettingsScreen(
                     }
                 }
             }
+
+            // Recommendation banner
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Graphite),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Recommended Model for Your Device", fontWeight = FontWeight.Bold, color = NeonGreen)
+                    Text(
+                        "Detected RAM: ${deviceRamGb}GB\nBest compatibility: ${bestModel.name}",
+                        color = MutedGrey,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        "${bestModel.description} (${bestModel.sizeLabel})",
+                        color = MutedGrey,
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        "Download: ${bestModel.downloadUrl}",
+                        color = ElectricBlue,
+                        fontSize = 12.sp
+                    )
+                }
+            }
         }
     }
+}
+
+@Composable
+fun getDeviceRamGb(context: Context): Int {
+    val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    val memInfo = ActivityManager.MemoryInfo()
+    activityManager.getMemoryInfo(memInfo)
+    return (memInfo.totalMem / (1024 * 1024 * 1024)).toInt()
 }

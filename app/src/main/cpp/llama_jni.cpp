@@ -13,7 +13,14 @@
 #include <vector>
 
 #include "llama.h"
-#include "common.h"
+
+#ifndef JNICALL
+#define JNICALL
+#endif
+
+#ifndef JNIEXPORT
+#define JNIEXPORT __attribute__((visibility("default")))
+#endif
 
 #define TAG "LlamaCppJNI"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  TAG, __VA_ARGS__)
@@ -33,7 +40,8 @@ static std::string jstring_to_string(JNIEnv *env, jstring jstr) {
 /* ------------------------------------------------------------------ */
 /* loadModel                                                          */
 /* ------------------------------------------------------------------ */
-extern "C" JNIEXPORT jlong JNICALL
+extern "C"
+JNIEXPORT jlong JNICALL
 Java_com_stocksense_app_engine_LlamaCpp_loadModel(
         JNIEnv *env,
         jclass  /* clazz */,
@@ -60,7 +68,8 @@ Java_com_stocksense_app_engine_LlamaCpp_loadModel(
 /* ------------------------------------------------------------------ */
 /* createContext                                                       */
 /* ------------------------------------------------------------------ */
-extern "C" JNIEXPORT jlong JNICALL
+extern "C"
+JNIEXPORT jlong JNICALL
 Java_com_stocksense_app_engine_LlamaCpp_createContext(
         JNIEnv */* env */,
         jclass  /* clazz */,
@@ -86,7 +95,8 @@ Java_com_stocksense_app_engine_LlamaCpp_createContext(
 /* ------------------------------------------------------------------ */
 /* runInference                                                        */
 /* ------------------------------------------------------------------ */
-extern "C" JNIEXPORT jstring JNICALL
+extern "C"
+JNIEXPORT jstring JNICALL
 Java_com_stocksense_app_engine_LlamaCpp_runInference(
         JNIEnv *env,
         jclass  /* clazz */,
@@ -126,8 +136,13 @@ Java_com_stocksense_app_engine_LlamaCpp_runInference(
     llama_batch batch = llama_batch_init(n_prompt + max_tokens, 0, 1);
 
     for (int i = 0; i < n_prompt; i++) {
-        llama_batch_add(batch, tokens[i], i, {0}, false);
+        batch.token[i] = tokens[i];
+        batch.pos[i] = i;
+        batch.n_seq_id[i] = 1;
+        batch.seq_id[i][0] = 0;
+        batch.logits[i] = false;
     }
+    batch.n_tokens = n_prompt;
     batch.logits[batch.n_tokens - 1] = true;
 
     if (llama_decode(ctx, batch) != 0) {
@@ -137,35 +152,42 @@ Java_com_stocksense_app_engine_LlamaCpp_runInference(
 
     /* Greedy sampling loop. */
     std::string result;
-    const llama_token eos = llama_vocab_eos(vocab);
     int n_decoded = 0;
-
-    llama_sampler *sampler = llama_sampler_chain_init(llama_sampler_chain_default_params());
-    llama_sampler_chain_add(sampler, llama_sampler_init_greedy());
-
     while (n_decoded < max_tokens) {
-        llama_token new_token = llama_sampler_sample(sampler, ctx, batch.n_tokens - 1);
+        // Sample next token
+        float *logits = llama_get_logits(ctx);
+        int vocab_size = llama_vocab_n_tokens(vocab);
+        int max_id = 0;
+        float max_logit = logits[0];
+        for (int i = 1; i < vocab_size; ++i) {
+            if (logits[i] > max_logit) {
+                max_logit = logits[i];
+                max_id = i;
+            }
+        }
+        llama_token new_token = max_id;
+        if (new_token == llama_vocab_eos(vocab)) break;
 
-        if (llama_vocab_is_eog(vocab, new_token)) break;
-
-        /* Convert token to text. */
+        // Convert token to text
         char buf[256];
-        int len = llama_token_to_piece(vocab, new_token, buf, sizeof(buf), 0, true);
+        int len = llama_token_to_piece(vocab, new_token, buf, sizeof(buf), /* special */ false, /* type */ LLAMA_TOKEN_TYPE_UNDEFINED);
         if (len > 0) {
             result.append(buf, len);
         }
 
-        /* Prepare next batch with the generated token. */
-        llama_batch_clear(batch);
-        llama_batch_add(batch, new_token, n_prompt + n_decoded, {0}, true);
+        // Prepare next batch with the generated token
+        batch.token[0] = new_token;
+        batch.pos[0] = n_prompt + n_decoded;
+        batch.n_seq_id[0] = 1;
+        batch.seq_id[0][0] = 0;
+        batch.logits[0] = true;
+        batch.n_tokens = 1;
 
         if (llama_decode(ctx, batch) != 0) break;
         n_decoded++;
     }
 
-    llama_sampler_free(sampler);
     llama_batch_free(batch);
-    llama_kv_cache_clear(ctx);
 
     LOGI("Generated %d tokens", n_decoded);
     return env->NewStringUTF(result.c_str());
@@ -174,7 +196,8 @@ Java_com_stocksense_app_engine_LlamaCpp_runInference(
 /* ------------------------------------------------------------------ */
 /* freeContext                                                          */
 /* ------------------------------------------------------------------ */
-extern "C" JNIEXPORT void JNICALL
+extern "C"
+JNIEXPORT void JNICALL
 Java_com_stocksense_app_engine_LlamaCpp_freeContext(
         JNIEnv */* env */,
         jclass  /* clazz */,
@@ -190,7 +213,8 @@ Java_com_stocksense_app_engine_LlamaCpp_freeContext(
 /* ------------------------------------------------------------------ */
 /* freeModel                                                           */
 /* ------------------------------------------------------------------ */
-extern "C" JNIEXPORT void JNICALL
+extern "C"
+JNIEXPORT void JNICALL
 Java_com_stocksense_app_engine_LlamaCpp_freeModel(
         JNIEnv */* env */,
         jclass  /* clazz */,

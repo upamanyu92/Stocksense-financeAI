@@ -12,7 +12,7 @@ include(FetchContent)
 FetchContent_Declare(
     llama_cpp
     GIT_REPOSITORY https://github.com/ggerganov/llama.cpp.git
-    GIT_TAG        b4568
+    GIT_TAG        98ae0a0d3600f08fbd8d938bc8de0436755e50c3
     GIT_SHALLOW    TRUE
     GIT_PROGRESS   TRUE
 )
@@ -29,25 +29,24 @@ FetchContent_MakeAvailable(llama_cpp)
 # ---------------------------------------------------------------------------
 # JNI wrapper – bridges Kotlin (LlamaCpp.kt) <-> C++ llama.cpp API
 # ---------------------------------------------------------------------------
-add_library(llama SHARED
+add_library(llama_jni SHARED
     llama_jni.cpp
 )
 
-target_include_directories(llama PRIVATE
+target_include_directories(llama_jni PRIVATE
     ${llama_cpp_SOURCE_DIR}/include
     ${llama_cpp_SOURCE_DIR}/ggml/include
 )
 
 find_library(log-lib log)
 
-target_link_libraries(llama PRIVATE
+# Link JNI shared lib to llama.cpp static lib and Android log lib
+target_link_libraries(llama_jni PRIVATE
     llama
-    ggml
-    common
     ${log-lib}
 )
 
 # Strip debug symbols for release to keep APK small.
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    target_link_options(llama PRIVATE -s)
+    target_link_options(llama_jni PRIVATE -s)
 endif()
