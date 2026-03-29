@@ -178,46 +178,37 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
-// Force kotlinx-serialization to 1.7.3 across all configurations.
-// Room 2.8.4's pre-compiled serializer classes (FieldBundle$$serializer etc.) were compiled
-// with kotlinx-serialization 1.7.3; serialization 1.8.0+ added typeParametersSerializers()
-// to the GeneratedSerializer interface, which causes AbstractMethodError at KSP processing time.
-configurations.all {
-    resolutionStrategy {
-        force 'org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.3'
-        force 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3'
-        force 'org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.7.3'
-        force 'org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.7.3'
-    }
-}
-
 dependencies {
-    def composeBom = platform('androidx.compose:compose-bom:2026.03.01')
+    // Compose BOM 2024.12.01 — the last stable BOM compiled with Kotlin 2.1.x.
+    // 2026.03.01 required Kotlin 2.3.x (kotlin-stdlib-2.3.10 transitive dep) which
+    // is incompatible with our Kotlin 2.1.0 compiler.
+    def composeBom = platform('androidx.compose:compose-bom:2024.12.01')
     implementation composeBom
     androidTestImplementation composeBom
 
-    // Core Android
-    implementation 'androidx.core:core-ktx:1.18.0'
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.10.0'
-    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0'
-    implementation 'androidx.activity:activity-compose:1.13.0'
-    implementation 'androidx.appcompat:appcompat:1.7.1'
+    // Core Android — versions verified compatible with Kotlin 2.1.0 (Dec 2024 era)
+    implementation 'androidx.core:core-ktx:1.15.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
+    implementation 'androidx.activity:activity-compose:1.9.3'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
 
-    // Jetpack Compose
+    // Jetpack Compose (versions resolved by the BOM above)
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.ui:ui-graphics'
     implementation 'androidx.compose.ui:ui-tooling-preview'
     implementation 'androidx.compose.material3:material3'
     implementation 'androidx.compose.material:material-icons-extended'
-    implementation 'androidx.navigation:navigation-compose:2.9.7'
+    implementation 'androidx.navigation:navigation-compose:2.8.5'
 
-    // Room Database
-    implementation 'androidx.room:room-runtime:2.8.4'
-    implementation 'androidx.room:room-ktx:2.8.4'
-    ksp 'androidx.room:room-compiler:2.8.4'
+    // Room Database — 2.6.1 with KSP; avoids kotlinx-serialization schema conflict
+    // introduced in Room 2.8.x (which uses kotlinx-serialization for schema files).
+    implementation 'androidx.room:room-runtime:2.6.1'
+    implementation 'androidx.room:room-ktx:2.6.1'
+    ksp 'androidx.room:room-compiler:2.6.1'
 
     // WorkManager
-    implementation 'androidx.work:work-runtime-ktx:2.11.2'
+    implementation 'androidx.work:work-runtime-ktx:2.10.0'
 
     // TensorFlow Lite
     implementation 'org.tensorflow:tensorflow-lite:2.17.0'
@@ -228,29 +219,23 @@ dependencies {
     // OkHttp – HTTP client for BitNet model downloads
     implementation 'com.squareup.okhttp3:okhttp:5.3.2'
 
-    // Kotlinx Serialization — cap at 1.7.3 to stay binary-compatible with Room 2.8.4
-    // (kotlinx-serialization 1.8.0+ added typeParametersSerializers() to GeneratedSerializer,
-    //  which breaks Room 2.8.4's pre-compiled FieldBundle$$serializer and friends).
+    // Kotlinx Serialization (compatible with Kotlin 2.1.0 and Room 2.6.1)
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3'
 
     // Coroutines
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
 
-    // Charts - Vico (Compose-native)
-    implementation 'com.patrykandpatrick.vico:compose-m3:3.0.3'
-    implementation 'com.patrykandpatrick.vico:core:2.4.3'
-
     // DataStore Preferences
-    implementation 'androidx.datastore:datastore-preferences:1.2.1'
+    implementation 'androidx.datastore:datastore-preferences:1.1.1'
 
     // Testing
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2'
-    testImplementation 'androidx.room:room-testing:2.8.4'
+    testImplementation 'androidx.room:room-testing:2.6.1'
     // Real XmlPullParser implementation for JVM unit tests (Android stubs don't provide one)
     testImplementation 'net.sf.kxml:kxml2:2.3.0'
-    androidTestImplementation 'androidx.test.ext:junit:1.3.0'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.7.0'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
     androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
     debugImplementation 'androidx.compose.ui:ui-tooling'
     debugImplementation 'androidx.compose.ui:ui-test-manifest'
