@@ -178,6 +178,19 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+// Force kotlinx-serialization to 1.7.3 across all configurations.
+// Room 2.8.4's pre-compiled serializer classes (FieldBundle$$serializer etc.) were compiled
+// with kotlinx-serialization 1.7.3; serialization 1.8.0+ added typeParametersSerializers()
+// to the GeneratedSerializer interface, which causes AbstractMethodError at KSP processing time.
+configurations.all {
+    resolutionStrategy {
+        force 'org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.3'
+        force 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3'
+        force 'org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.7.3'
+        force 'org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.7.3'
+    }
+}
+
 dependencies {
     def composeBom = platform('androidx.compose:compose-bom:2026.03.01')
     implementation composeBom
@@ -215,8 +228,10 @@ dependencies {
     // OkHttp – HTTP client for BitNet model downloads
     implementation 'com.squareup.okhttp3:okhttp:5.3.2'
 
-    // Kotlinx Serialization
-    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0'
+    // Kotlinx Serialization — cap at 1.7.3 to stay binary-compatible with Room 2.8.4
+    // (kotlinx-serialization 1.8.0+ added typeParametersSerializers() to GeneratedSerializer,
+    //  which breaks Room 2.8.4's pre-compiled FieldBundle$$serializer and friends).
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3'
 
     // Coroutines
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
