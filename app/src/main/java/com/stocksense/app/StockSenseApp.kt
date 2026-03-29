@@ -51,6 +51,7 @@ class StockSenseApp : Application() {
     val watchlistDao: WatchlistDao by lazy { database.watchlistDao() }
     val portfolioHoldingDao: PortfolioHoldingDao by lazy { database.portfolioHoldingDao() }
     val tradeDao: TradeDao by lazy { database.tradeDao() }
+    @Suppress("unused")
     val userLevelDao: UserLevelDao by lazy { database.userLevelDao() }
     val chatMessageDao: ChatMessageDao by lazy { database.chatMessageDao() }
     val nseSecurityDao by lazy { database.nseSecurityDao() }
@@ -80,6 +81,7 @@ class StockSenseApp : Application() {
     }
 
     // Agentic prediction pipeline
+    @Suppress("unused")
     val agenticPipeline: AgenticPipeline by lazy {
         AgenticPipeline(predictionEngine, modelManager.llmEngine, learningEngine)
     }
@@ -113,6 +115,12 @@ class StockSenseApp : Application() {
         // Schedule background workers
         DataSyncWorker.schedule(this)
         LearningWorker.schedule(this)
+
+        // Copy bundled nano model from APK assets → filesDir (no-op if not bundled or already copied)
+        appScope.launch {
+            try { bitNetDownloader.copyBundledModelIfNeeded() }
+            catch (e: Exception) { Log.e(TAG, "Bundled model copy error: ${e.message}") }
+        }
 
         // Auto-download Microsoft BitNet 1-bit LLM model on first launch.
         // Uses WorkManager so download runs only when network is available

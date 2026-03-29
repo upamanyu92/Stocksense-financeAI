@@ -26,7 +26,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.stocksense.app.R
@@ -63,20 +62,20 @@ fun LoginScreen(
             // Logo
             Image(
                 painter = painterResource(id = R.drawable.ic_app_logo),
-                contentDescription = "StockSense Logo",
+                contentDescription = "SenseQuant Logo",
                 modifier = Modifier.size(100.dp)
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "StockSense",
+                text = "SenseQuant",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = ElectricBlue
             )
             Text(
-                text = "AI-Powered Financial Intelligence",
+                text = "Quantified Intelligence · Precision Wealth",
                 fontSize = 14.sp,
                 color = MutedGrey,
                 modifier = Modifier.padding(top = 4.dp)

@@ -80,15 +80,13 @@ class ChatViewModel(
                     emptyList()
                 }
 
-                val aiResponseText = if (metrics.status == LlmStatus.READY) {
-                    llmEngine.chat(
-                        userMessage = text,
-                        symbol = symbol ?: "GENERAL",
-                        recentPrices = recentPrices
-                    )
-                } else {
-                    llmUnavailableMessage(metrics.status, metrics.modelFileName)
-                }
+                // Always call llmEngine.chat() — it uses template fallback internally
+                // when the model is not loaded, so the user always gets a useful response.
+                val aiResponseText = llmEngine.chat(
+                    userMessage = text,
+                    symbol = symbol ?: "GENERAL",
+                    recentPrices = recentPrices
+                )
 
                 val updatedMetrics = llmEngine.getMetrics()
 
