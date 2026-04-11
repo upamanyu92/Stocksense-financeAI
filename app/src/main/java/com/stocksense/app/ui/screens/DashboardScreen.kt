@@ -2,7 +2,6 @@ package com.stocksense.app.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -14,7 +13,6 @@ import androidx.compose.material.icons.filled.ArrowOutward
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CreditScore
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -42,7 +40,6 @@ fun DashboardScreen(
     viewModel: DashboardViewModel,
     searchViewModel: SearchViewModel,
     onStockClick: (String) -> Unit,
-    onProfileClick: () -> Unit = {},
     onViewAllSearchResults: (String) -> Unit = {},
     onNavigateToCredence: () -> Unit = {}
 ) {
@@ -101,7 +98,6 @@ fun DashboardScreen(
                     searchViewModel.clearSearch()
                     viewModel.updateSearchQuery("")
                 },
-                onProfileClick = onProfileClick
             )
 
             // Search dropdown overlay
@@ -149,27 +145,9 @@ fun DashboardScreen(
 private fun HeaderBar(
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
-    onClearSearch: () -> Unit,
-    onProfileClick: () -> Unit
+    onClearSearch: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("QuantSense Command Center", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            }
-            IconButton(onClick = onProfileClick) {
-                Icon(
-                    Icons.Default.Person,
-                    contentDescription = "Profile",
-                    tint = MutedGrey
-                )
-            }
-        }
-
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchQueryChange,

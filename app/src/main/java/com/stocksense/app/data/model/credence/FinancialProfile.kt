@@ -1,5 +1,6 @@
 package com.stocksense.app.data.model.credence
 
+import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
 
 /**
@@ -9,6 +10,7 @@ import kotlinx.serialization.Serializable
  * All monetary values are in the same currency unit (e.g., INR crores or USD millions).
  * Zero or negative `totalAssets` / `shareholdersEquity` will be guarded in [QuantAgent].
  */
+@OptIn(InternalSerializationApi::class)
 @Serializable
 data class FinancialProfile(
     /** Revenue / Net Sales for the most recent fiscal year (Altman X5 numerator). */
@@ -56,4 +58,3 @@ data class FinancialProfile(
     val ebitMargin: Double
         get() = if (totalRevenue > 0.0) ebit / totalRevenue else 0.0
 }
-

@@ -1,5 +1,6 @@
 package com.stocksense.app.data.model.credence
 
+import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
 
 /**
@@ -7,6 +8,7 @@ import kotlinx.serialization.Serializable
  *
  * The pipeline validates, enriches, and scores this request to produce a [TatvaAnkReport].
  */
+@OptIn(InternalSerializationApi::class)
 @Serializable
 data class CreditAnalysisRequest(
     /** Legal / trading name of the company being assessed. */
@@ -36,4 +38,3 @@ data class CreditAnalysisRequest(
                 financialProfile.totalAssets > 0.0 &&
                 financialProfile.totalRevenue > 0.0
 }
-

@@ -1,5 +1,6 @@
 package com.stocksense.app.data.model.credence
 
+import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
 
 /**
@@ -13,6 +14,7 @@ import kotlinx.serialization.Serializable
  *  - Reasoning Quality   (4)
  *  - UX & Delivery       (3)
  */
+@OptIn(InternalSerializationApi::class)
 @Serializable
 data class EvaluationMetric(
     /** Stable integer ID (1–22); do not reorder once deployed. */
@@ -47,4 +49,3 @@ enum class EvaluationCategory(val displayName: String) {
     REASONING_QUALITY("Reasoning Quality"),
     UX_DELIVERY("UX & Delivery")
 }
-

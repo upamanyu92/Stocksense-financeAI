@@ -1,8 +1,10 @@
 package com.stocksense.app.data.model
 
+import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
 
 /** Domain-level representation of a stock used by the UI layer. */
+@OptIn(InternalSerializationApi::class)
 @Serializable
 data class StockData(
     val symbol: String,

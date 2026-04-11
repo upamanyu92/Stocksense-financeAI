@@ -9,6 +9,7 @@ import com.stocksense.app.data.model.StockData
 import com.stocksense.app.data.repository.StockRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -16,6 +17,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
+@OptIn(InternalSerializationApi::class)
 private const val TAG = "DataIngestion"
 private const val STOCKS_ASSET = "stocks_initial.json"
 private const val STK_ASSET = "stk.json"
@@ -23,6 +25,8 @@ private const val NSE_COMPANIES_ASSET = "nse_companies.json"
 private const val HISTORY_ASSET_PREFIX = "history_"   // e.g. history_AAPL.csv
 /** Batch size for NSE securities insertion to stay within SQLite transaction limits. */
 private const val INSERT_BATCH_SIZE = 500
+
+private val json = Json { ignoreUnknownKeys = true }
 
 /**
  * DataIngestion – loads seed stock data from bundled assets on first launch.
@@ -103,18 +107,18 @@ class DataIngestion(
      */
     private fun loadStocksFromStkAsset(): List<StockData>? {
         return try {
-            val json = context.assets.open(STK_ASSET).bufferedReader().readText()
-            val seeds = Json { ignoreUnknownKeys = true }.decodeFromString<List<SeedStock>>(json)
+            val jsonStr = context.assets.open(STK_ASSET).bufferedReader().readText()
+            val seeds = json.decodeFromString<List<SeedStock>>(jsonStr)
             seeds.map { it.toStockData() }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             Log.d(TAG, "stk.json not found or invalid, falling back to stocks_initial.json")
             null
         }
     }
 
     private fun loadStocksFromAsset(): List<StockData> {
-        val json = context.assets.open(STOCKS_ASSET).bufferedReader().readText()
-        val seeds = Json { ignoreUnknownKeys = true }.decodeFromString<List<SeedStock>>(json)
+        val jsonStr = context.assets.open(STOCKS_ASSET).bufferedReader().readText()
+        val seeds = json.decodeFromString<List<SeedStock>>(jsonStr)
         return seeds.map { it.toStockData() }
     }
 
@@ -129,7 +133,7 @@ class DataIngestion(
                 }
             }
             points
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             Log.d(TAG, "No history asset for $symbol")
             null
         }
@@ -145,7 +149,7 @@ class DataIngestion(
                 close = parts[4].trim().toDouble(),
                 volume = parts[5].trim().toLong()
             )
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }

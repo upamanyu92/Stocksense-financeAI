@@ -138,9 +138,6 @@ fun StockSenseNavGraph(
                     onStockClick = { symbol ->
                         navController.navigate(Screen.Prediction.createRoute(symbol))
                     },
-                    onProfileClick = {
-                        navController.navigate(Screen.Profile.route)
-                    },
                     onViewAllSearchResults = { query ->
                         navController.navigate(Screen.SearchResults.createRoute(query))
                     },

@@ -1,11 +1,13 @@
 package com.stocksense.app.data.model.credence
 
+import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
 
 /**
  * Risk classification produced by the Orchestrator Agent.
  * Mirrors the risk badge colours used in the CredenceAI Streamlit UI.
  */
+@OptIn(InternalSerializationApi::class)
 @Serializable
 enum class RiskLabel(val displayName: String, val emoji: String) {
     LOW("Low Risk", "🟢"),
@@ -100,4 +102,3 @@ data class TatvaAnkReport(
         get() = if (evaluationMetrics.isEmpty()) 0.0
                 else evaluationMetrics.sumOf { it.score } / evaluationMetrics.size
 }
-
