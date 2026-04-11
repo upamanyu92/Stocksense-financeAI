@@ -14,3 +14,8 @@ app/release/
 *.aab
 keystore.properties
 *.jks
+
+# LLM model files – never commit large GGUF binaries to git
+*.gguf
+app/src/main/assets/models/
+

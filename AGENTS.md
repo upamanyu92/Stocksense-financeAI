@@ -26,11 +26,12 @@
 - `PortfolioXlsxParser` auto-detects format and returns `ParseResult.MutualFunds` or `ParseResult.Stocks`.
 - AI analysis calls `LLMInsightEngine.analyzePortfolio(summary)` → template fallback if no model loaded.
 
-## Bundled SmolLM2 model (zero-download device setup)
-- Asset path: `app/src/main/assets/models/smollm2-135m-instruct-v0.2-q4_k_m.gguf`
-- Download before building: `./gradlew downloadBundledModel` OR `./scripts/download_smollm2.sh`
-- On launch, `BitNetModelDownloader.copyBundledModelIfNeeded()` copies it to `filesDir/models/` once.
-- `InitialSetupViewModel.init` checks for the file and marks setup complete — no download dialog shown.
+## Bundled SmolLM2 model (runtime download — no longer bundled in APK)
+- Models are downloaded at runtime via `InitialSetupScreen` on first launch.
+- The `.gguf` file is **never committed to git** (exceeds GitHub's 100 MB limit). `*.gguf` is in `.gitignore`.
+- `BitNetModelDownloader.copyBundledModelIfNeeded()` is deprecated/no-op; asset-copy path removed.
+- `InitialSetupViewModel.init` auto-completes setup only if a previously-downloaded `.gguf` is found in `filesDir/models/`.
+- SmolLM2 135M Q4_K_M (~80 MB) is pre-selected for low-RAM devices; user can pick a larger model from the setup list.
 
 ## Core execution paths to preserve
 - Prediction: `PredictionViewModel.runPrediction()` → `ModelManager.ensureLoaded()` → `PredictionEngine.predict()`.
@@ -64,7 +65,6 @@
 
 ## Developer workflows
 - Debug build: `./gradlew assembleDebug`
-- Bundle SmolLM2: `./gradlew downloadBundledModel` (run once before build)
 - Unit tests: `./gradlew test`
 - Release (ABI splits + universal): `./gradlew assembleRelease`
 - Override version: `./gradlew assembleRelease -Pstocksense.versionName=1.2.0 -Pstocksense.versionCode=10200`

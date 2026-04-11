@@ -23,17 +23,16 @@ fun buildSetupModels(deviceRamGb: Int): List<ModelOption> {
     val all = listOf(
         ModelOption(
             name = "SmolLM2 135M (Q4_K_M) · Nano",
-            description = "Bundleable with APK · no download needed · 135M params",
+            description = "Tiny, fast model · ~80 MB download · 135M params",
             sizeLabel = "~80 MB",
             mode = QualityMode.LITE,
             downloadUrl = "https://huggingface.co/HuggingFaceTB/smollm2-135M-instruct-v0.2-GGUF/resolve/main/smollm2-135m-instruct-v0.2-q4_k_m.gguf",
             recommendedRamGb = 1,
-            explanation = "SmolLM2-135M is the only model small enough (~80 MB) to ship inside the " +
-                "APK itself — zero network required at first launch. It handles basic finance Q&A, " +
-                "price lookups, and alert summaries with low latency. Quality is intentionally limited; " +
-                "treat it as a fast local test harness rather than a production model. " +
-                "To bundle it: download the GGUF and place it at " +
-                "app/src/main/assets/models/smollm2-135m-instruct-v0.2-q4_k_m.gguf before building."
+            explanation = "SmolLM2-135M is the smallest available model (~80 MB download). It handles " +
+                "basic finance Q&A, price lookups, and alert summaries with very low latency and " +
+                "minimal RAM usage. Quality is intentionally limited; treat it as a fast local " +
+                "assistant rather than a deep analytical model. Recommended for devices under 3 GB RAM " +
+                "or for users who want the fastest possible download and response times."
         ),
         ModelOption(
             name = "TinyLlama 1.1B (Q4_K_M)",
@@ -121,10 +120,14 @@ class InitialSetupViewModel(
         val recIdx = models.indexOfFirst { it.recommended }.coerceAtLeast(0)
         _uiState.update { it.copy(availableModels = models, selectedModelIndex = recIdx, deviceRamGb = ram) }
 
-        // Auto-complete setup if the SmolLM2 model was bundled inside the APK and already copied.
+        // Auto-complete setup if a model was previously downloaded (any valid .gguf present).
+        // This no longer relies on a bundled APK asset — setup is only skipped when
+        // the user already completed a runtime download on a prior launch.
         viewModelScope.launch {
-            val bundledFile = File(downloader.modelsDir, BitNetModelDownloader.BUNDLED_MODEL_FILE)
-            if (bundledFile.exists() && bundledFile.length() > 0) {
+            val hasAnyModel = downloader.modelsDir
+                .listFiles()
+                ?.any { it.extension == "gguf" && it.length() > 0 } == true
+            if (hasAnyModel) {
                 prefsManager.markInitialSetupComplete()
                 _uiState.update { it.copy(setupComplete = true) }
             }

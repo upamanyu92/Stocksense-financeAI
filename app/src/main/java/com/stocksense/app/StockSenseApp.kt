@@ -130,11 +130,6 @@ class StockSenseApp : Application() {
         DataSyncWorker.schedule(this)
         LearningWorker.schedule(this)
 
-        // Copy bundled nano model from APK assets → filesDir (no-op if not bundled or already copied)
-        appScope.launch {
-            try { bitNetDownloader.copyBundledModelIfNeeded() }
-            catch (e: Exception) { Log.e(TAG, "Bundled model copy error: ${e.message}") }
-        }
 
         // Auto-download Microsoft BitNet 1-bit LLM model on first launch.
         // Uses WorkManager so download runs only when network is available
