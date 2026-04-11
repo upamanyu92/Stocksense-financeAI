@@ -2,7 +2,9 @@ package com.stocksense.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,14 +19,18 @@ import com.stocksense.app.ui.navigation.StockSenseNavGraph
 import com.stocksense.app.ui.screens.BootSplashScreen
 import com.stocksense.app.ui.screens.InitialSetupScreen
 import com.stocksense.app.ui.theme.StockSenseTheme
-import com.stocksense.app.viewmodel.*
-import kotlinx.coroutines.delay
+import com.stocksense.app.viewmodel.*import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
 
     private val app: StockSenseApp by lazy { application as StockSenseApp }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Edge-to-edge: draw behind system bars with dark scrim
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        )
         super.onCreate(savedInstanceState)
 
         val authViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
@@ -99,6 +105,12 @@ class MainActivity : ComponentActivity() {
                 LlmSettingsViewModel(app.bitNetDownloader, app.modelManager.llmEngine) as T
         })[LlmSettingsViewModel::class.java]
 
+        val credenceAIViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                CredenceAIViewModel(app.credenceAIEngine, app.credenceAnalysisDao, app.modelManager.llmEngine) as T
+        })[CredenceAIViewModel::class.java]
+
         val initialSetupViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
@@ -141,7 +153,8 @@ class MainActivity : ComponentActivity() {
                             chatViewModel = chatViewModel,
                             authViewModel = authViewModel,
                             searchViewModel = searchViewModel,
-                            llmSettingsViewModel = llmSettingsViewModel
+                            llmSettingsViewModel = llmSettingsViewModel,
+                            credenceAIViewModel = credenceAIViewModel
                         )
                     }
                 }

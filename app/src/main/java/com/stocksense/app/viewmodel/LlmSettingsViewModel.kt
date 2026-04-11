@@ -116,7 +116,7 @@ class LlmSettingsViewModel(
         _uiState.update {
             it.copy(
                 status = metrics.status,
-                currentModelName = metrics.modelFileName,
+                currentModelName = metrics.displayModelName,
                 isNativeAvailable = metrics.isNativeAvailable,
                 isModelDownloaded = metrics.isModelDownloaded,
                 lastInferenceTimeMs = metrics.lastInferenceTimeMs
@@ -218,9 +218,11 @@ class LlmSettingsViewModel(
     }
 
     fun deleteModels() {
-        llmEngine.unloadModel()
-        downloader.clearModels()
-        refreshStatus()
+        viewModelScope.launch {
+            llmEngine.unloadModel()
+            downloader.clearModels()
+            refreshStatus()
+        }
     }
 
     fun reloadModel() {

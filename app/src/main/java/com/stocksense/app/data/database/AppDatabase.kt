@@ -18,9 +18,10 @@ import com.stocksense.app.data.database.entities.*
         UserLevel::class,
         NseSecurity::class,
         ChatMessage::class,
-        SystemSetting::class
+        SystemSetting::class,
+        CredenceAnalysis::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -38,6 +39,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun nseSecurityDao(): NseSecurityDao
     abstract fun chatMessageDao(): ChatMessageDao
     abstract fun systemSettingDao(): SystemSettingDao
+    abstract fun credenceAnalysisDao(): CredenceAnalysisDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null

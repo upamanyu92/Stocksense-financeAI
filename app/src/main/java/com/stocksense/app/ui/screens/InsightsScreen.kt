@@ -216,7 +216,7 @@ private fun AgenticMetricsCard(metrics: AgenticMetrics) {
             MetricRow("Quality Mode", metrics.qualityMode.name)
             MetricRow("Native Available", if (metrics.isNativeAvailable) "Yes" else "No")
             MetricRow("Model Downloaded", if (metrics.isModelDownloaded) "Yes" else "No")
-            MetricRow("Model File", metrics.modelFileName)
+            MetricRow("Model", metrics.displayModelName.ifBlank { "—" })
             MetricRow("Last Inference", if (metrics.lastInferenceTimeMs > 0) "${metrics.lastInferenceTimeMs}ms" else "N/A")
             MetricRow("Cache Hits", "${metrics.cacheHits}")
             MetricRow("Total Inferences", "${metrics.totalInferences}")

@@ -37,6 +37,9 @@ class DashboardViewModel(
     init {
         observeStocks()
         seedStaticContent()
+        // Trigger an immediate network refresh so live data appears on launch
+        // rather than waiting for the 15-minute DataSyncWorker.
+        refresh()
     }
 
     fun updateSearchQuery(query: String) {
@@ -77,7 +80,16 @@ class DashboardViewModel(
     }
 
     fun refresh() {
-        observeStocks()
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            try {
+                stockRepository.refreshTrackedStocks()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = "Refresh failed: ${e.message}") }
+            } finally {
+                _uiState.update { it.copy(isLoading = false) }
+            }
+        }
     }
 
     private fun seedStaticContent() {

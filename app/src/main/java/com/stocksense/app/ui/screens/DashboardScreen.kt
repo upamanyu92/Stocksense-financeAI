@@ -2,6 +2,7 @@ package com.stocksense.app.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -11,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowOutward
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.CreditScore
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
@@ -41,7 +43,8 @@ fun DashboardScreen(
     searchViewModel: SearchViewModel,
     onStockClick: (String) -> Unit,
     onProfileClick: () -> Unit = {},
-    onViewAllSearchResults: (String) -> Unit = {}
+    onViewAllSearchResults: (String) -> Unit = {},
+    onNavigateToCredence: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val searchState by searchViewModel.uiState.collectAsState()
@@ -57,21 +60,27 @@ fun DashboardScreen(
                         Image(
                             painter = painterResource(id = R.drawable.ic_app_logo),
                             contentDescription = "SenseQuant Logo",
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(28.dp)
                         )
-                        Text("SenseQuant", fontWeight = FontWeight.SemiBold)
+                        Text("SenseQuant", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
                     }
                 },
                 actions = {
                     IconButton(onClick = { /* notifications */ }) {
-                        Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+                        Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = MutedGrey)
                     }
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ElectricBlue)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = DeepBlack,
+                    titleContentColor = Color.White,
+                    actionIconContentColor = MutedGrey
+                )
             )
-        }
+        },
+        containerColor = DeepBlack
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -116,6 +125,9 @@ fun DashboardScreen(
             )
 
             PredictionsSection(uiState.predictions)
+
+            // Quick access — Credence AI credit scoring
+            CredenceAICard(onClick = onNavigateToCredence)
 
             WatchlistSection(
                 title = if (uiState.searchQuery.isBlank()) "Watchlist" else "Search Results",
@@ -509,6 +521,53 @@ private fun WeightingRulesSection(rules: List<WeightingRule>, stopWords: List<St
         }
         if (stopWords.isNotEmpty()) {
             Text("Context stop words: ${stopWords.joinToString()}", color = MutedGrey, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun CredenceAICard(onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = Graphite),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .background(
+                    Brush.linearGradient(
+                        listOf(AuroraPurple.copy(alpha = 0.12f), GlassSurface)
+                    )
+                )
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Icon(
+                Icons.Default.CreditScore,
+                contentDescription = null,
+                tint = AuroraPurple,
+                modifier = Modifier.size(36.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Credence AI",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = AuroraPurple
+                )
+                Text(
+                    "Tatva Ank Credit Scoring · Run AI-powered credit analysis",
+                    color = MutedGrey,
+                    fontSize = 12.sp
+                )
+            }
+            Icon(
+                Icons.Default.ArrowOutward,
+                contentDescription = null,
+                tint = AuroraPurple.copy(alpha = 0.6f)
+            )
         }
     }
 }

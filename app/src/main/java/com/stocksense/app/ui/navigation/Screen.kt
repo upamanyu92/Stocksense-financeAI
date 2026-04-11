@@ -29,6 +29,7 @@ sealed class Screen(
     object Profile : Screen("profile", "Profile", icon = Icons.Default.Person)
     object LlmSettings : Screen("llm_settings", "LLM Settings", icon = Icons.Default.Settings)
     object Feedback : Screen("feedback", "Feedback", icon = Icons.Default.Email)
+    object CredenceAI : Screen("credence_ai", "Credence AI", icon = Icons.Default.CreditScore)
     object SearchResults : Screen("search_results/{query}", "Search", icon = Icons.Default.Search) {
         fun createRoute(query: String) = "search_results/$query"
     }

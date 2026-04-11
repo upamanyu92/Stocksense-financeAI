@@ -66,6 +66,7 @@ ext.abiCodes = ['arm64-v8a': 1, 'x86_64': 2]
 android {
     namespace 'com.stocksense.app'
     compileSdk 36
+    ndkVersion '26.1.10909125'
 
     defaultConfig {
         applicationId "com.stocksense.app"

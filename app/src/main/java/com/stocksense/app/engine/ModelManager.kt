@@ -31,7 +31,7 @@ class ModelManager(context: Context) {
     }
 
     /** Release models from memory (called when app goes to background or battery is low). */
-    fun releaseAll() {
+    suspend fun releaseAll() {
         predictionEngine.unloadModel()
         llmEngine.unloadModel()
         Log.i(TAG, "All models unloaded")
@@ -41,7 +41,7 @@ class ModelManager(context: Context) {
      * Release models if they have been idle for [IDLE_TIMEOUT_MS].
      * Call this periodically from a WorkManager job or lifecycle observer.
      */
-    fun releaseIfIdle() {
+    suspend fun releaseIfIdle() {
         if (lastUsedMs > 0 && System.currentTimeMillis() - lastUsedMs > IDLE_TIMEOUT_MS) {
             releaseAll()
             lastUsedMs = 0L

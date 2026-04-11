@@ -6,6 +6,7 @@ import com.stocksense.app.alerts.AlertManager
 import com.stocksense.app.data.database.AppDatabase
 import com.stocksense.app.data.database.dao.AlertDao
 import com.stocksense.app.data.database.dao.ChatMessageDao
+import com.stocksense.app.data.database.dao.CredenceAnalysisDao
 import com.stocksense.app.data.database.dao.PortfolioHoldingDao
 import com.stocksense.app.data.database.dao.PredictionDao
 import com.stocksense.app.data.database.dao.TradeDao
@@ -19,6 +20,7 @@ import com.stocksense.app.engine.BitNetModelDownloader
 import com.stocksense.app.engine.LearningEngine
 import com.stocksense.app.engine.ModelManager
 import com.stocksense.app.engine.PredictionEngine
+import com.stocksense.app.engine.credence.CredenceAIEngine
 import com.stocksense.app.ingestion.DataIngestion
 import com.stocksense.app.preferences.UserPreferencesManager
 import com.stocksense.app.workers.DataSyncWorker
@@ -55,6 +57,7 @@ class StockSenseApp : Application() {
     val userLevelDao: UserLevelDao by lazy { database.userLevelDao() }
     val chatMessageDao: ChatMessageDao by lazy { database.chatMessageDao() }
     val nseSecurityDao by lazy { database.nseSecurityDao() }
+    val credenceAnalysisDao: CredenceAnalysisDao by lazy { database.credenceAnalysisDao() }
 
     private val marketDataRouter: MarketDataRouter by lazy {
         MarketDataRouter(
@@ -89,6 +92,9 @@ class StockSenseApp : Application() {
     // BitNet model downloader
     val bitNetDownloader: BitNetModelDownloader by lazy { BitNetModelDownloader(this) }
 
+    // Credence AI credit-scoring engine
+    val credenceAIEngine: CredenceAIEngine by lazy { CredenceAIEngine(modelManager.llmEngine) }
+
     // Alerts
     val alertManager: AlertManager by lazy { AlertManager(this, database.alertDao()) }
 
@@ -103,12 +109,20 @@ class StockSenseApp : Application() {
         Log.i(TAG, "StockSenseApp starting up")
         Log.i(TAG, "Configured market data providers: ${marketDataRouter.configuredProviderIds()}")
 
-        // Seed database on first launch (non-blocking)
+        // Seed database on first launch, then refresh prices from Yahoo Finance.
+        // The seed provides static data; the immediate refresh fetches live quotes
+        // so the user sees current prices without waiting for the periodic DataSyncWorker.
         appScope.launch {
             try {
                 dataIngestion.seedIfEmpty()
             } catch (e: Exception) {
                 Log.e(TAG, "Seed error: ${e.message}")
+            }
+            try {
+                val refreshed = stockRepository.refreshTrackedStocks()
+                Log.i(TAG, "Initial stock refresh complete: $refreshed stocks updated")
+            } catch (e: Exception) {
+                Log.w(TAG, "Initial stock refresh failed (will retry via DataSyncWorker): ${e.message}")
             }
         }
 

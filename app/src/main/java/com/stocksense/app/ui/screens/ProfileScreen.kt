@@ -282,7 +282,7 @@ fun ProfileScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                "Model file: ${uiState.llmMetrics.modelFileName.ifBlank { "None" }}",
+                                "Model: ${uiState.llmMetrics.displayModelName.ifBlank { "None" }}",
                                 style = MaterialTheme.typography.bodySmall
                             )
                             Text(

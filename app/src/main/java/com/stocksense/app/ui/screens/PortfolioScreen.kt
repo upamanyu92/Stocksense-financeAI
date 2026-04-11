@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.CreditScore
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,7 +39,8 @@ import com.stocksense.app.viewmodel.PortfolioViewModel
 @Composable
 fun PortfolioScreen(
     viewModel: PortfolioViewModel,
-    onStockClick: (String) -> Unit
+    onStockClick: (String) -> Unit,
+    onNavigateToCredence: (() -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val ctx = LocalContext.current
@@ -68,6 +70,13 @@ fun PortfolioScreen(
                     IconButton(onClick = { viewModel.analyzePortfolio() }) {
                         Icon(Icons.Default.Analytics, contentDescription = "AI Analysis",
                             tint = ElectricBlue)
+                    }
+                    // Credence AI credit scoring
+                    if (onNavigateToCredence != null) {
+                        IconButton(onClick = onNavigateToCredence) {
+                            Icon(Icons.Default.CreditScore, contentDescription = "Credence AI",
+                                tint = AuroraPurple)
+                        }
                     }
                 }
             )

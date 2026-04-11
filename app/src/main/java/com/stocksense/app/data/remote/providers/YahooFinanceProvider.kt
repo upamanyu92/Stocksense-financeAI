@@ -28,14 +28,12 @@ class YahooFinanceProvider(
         )
 
     override suspend fun fetch(request: MarketDataRequest): MarketDataPayload? {
-        val stock = when (request.requirementType) {
-            MarketDataRequirementType.QUOTE -> fetchQuote(request)
-            MarketDataRequirementType.MARKET_METADATA,
-            MarketDataRequirementType.FUNDAMENTAL_ANALYSIS -> fetchSummary(request)
-            else -> null
-        }
+        // Yahoo v7 quote and v10 quoteSummary endpoints require auth (401).
+        // All data is fetched from the v8 chart API which still works unauthenticated.
+        val chartResult = fetchChartResult(request)
+        val stock = chartResult?.let { extractStockFromChart(it, request) }
         val history = if (request.requirementType == MarketDataRequirementType.DAILY_HISTORY) {
-            fetchHistory(request)
+            chartResult?.let { extractHistoryFromChart(it, request) } ?: emptyList()
         } else {
             emptyList()
         }
@@ -43,93 +41,107 @@ class YahooFinanceProvider(
         return MarketDataPayload(stock = stock, history = history)
     }
 
-    private suspend fun fetchQuote(request: MarketDataRequest) =
-        getJson(
-            "$quoteBaseUrl/v7/finance/quote".toHttpUrl().newBuilder()
-                .addQueryParameter("symbols", request.symbol),
-            headers = yahooHeaders()
-        )?.let { root ->
-            val quote = root.firstObject("quoteResponse", "result", "0") ?: return@let null
-            buildStockData(
-                symbol = quote.string("symbol") ?: request.symbol,
-                name = quote.string("longName", "shortName") ?: request.displayName,
-                price = quote.double("regularMarketPrice"),
-                previousClose = quote.double("regularMarketPreviousClose"),
-                changePercent = quote.double("regularMarketChangePercent"),
-                marketCap = quote.long("marketCap"),
-                sector = ""
-            )
+    /**
+     * Fetch the v8 chart JSON and return the first result object, or null.
+     * Used by both quote and history extraction.
+     *
+     * For symbols without an exchange suffix:
+     * 1. Try the bare symbol first.
+     * 2. If it fails, retry with ".NS" (NSE India) as a fallback.
+     * 3. If the bare symbol resolved to a USD market, also try ".NS" and
+     *    prefer the INR result — this handles dual-listed stocks (e.g. INFY)
+     *    that are stored as NSE symbols in the seed data.
+     */
+    private suspend fun fetchChartResult(request: MarketDataRequest): kotlinx.serialization.json.JsonObject? {
+        val sym = request.symbol
+        val hasSuffix = sym.contains('.')
+
+        val bareResult = fetchChartJson(sym, request)
+
+        if (hasSuffix) return bareResult
+
+        if (bareResult == null) {
+            // Bare symbol failed — try .NS
+            return fetchChartJson("$sym.NS", request)
         }
 
-    private suspend fun fetchSummary(request: MarketDataRequest) =
-        getJson(
-            "$quoteBaseUrl/v10/finance/quoteSummary/${request.symbol}".toHttpUrl().newBuilder()
-                .addQueryParameter(
-                    "modules",
-                    "price,summaryProfile,financialData,defaultKeyStatistics"
-                ),
-            headers = yahooHeaders()
-        )?.let { root ->
-            val summary = root.firstObject("quoteSummary", "result", "0") ?: return@let null
-            val price = summary.objectAt("price")
-            val profile = summary.objectAt("summaryProfile")
-            val financial = summary.objectAt("financialData")
-            val stats = summary.objectAt("defaultKeyStatistics")
-
-            buildStockData(
-                symbol = request.symbol,
-                name = price?.string("longName", "shortName") ?: request.displayName,
-                price = price?.double("regularMarketPrice")
-                    ?: price?.objectAt("regularMarketPrice")?.double("raw")
-                    ?: financial?.double("currentPrice")
-                    ?: financial?.objectAt("currentPrice")?.double("raw"),
-                previousClose = price?.double("regularMarketPreviousClose")
-                    ?: price?.objectAt("regularMarketPreviousClose")?.double("raw"),
-                changePercent = price?.double("regularMarketChangePercent")
-                    ?: price?.objectAt("regularMarketChangePercent")?.double("raw"),
-                marketCap = price?.long("marketCap")
-                    ?: stats?.long("marketCap")
-                    ?: price?.objectAt("marketCap")?.long("raw")
-                    ?: stats?.objectAt("marketCap")?.long("raw"),
-                sector = profile?.string("sector", "industry")
-            )
+        // Bare symbol succeeded — check if it returned USD for a potential Indian stock.
+        // If so, try .NS and prefer the INR version.
+        val bareCurrency = bareResult.objectAt("meta")?.string("currency")
+        if (bareCurrency == "USD") {
+            val nsResult = fetchChartJson("$sym.NS", request)
+            val nsCurrency = nsResult?.objectAt("meta")?.string("currency")
+            if (nsCurrency == "INR") {
+                return nsResult  // prefer Indian market version
+            }
         }
 
-    private suspend fun fetchHistory(request: MarketDataRequest) =
-        getJson(
-            "$quoteBaseUrl/v8/finance/chart/${request.symbol}".toHttpUrl().newBuilder()
-                .addQueryParameter("interval", mapInterval(request.normalizedInterval))
-                .addQueryParameter("range", mapRange(request))
-                .apply {
-                    request.startTimeMillis?.let {
-                        addQueryParameter("period1", (it / 1000L).toString())
-                    }
-                    request.endTimeMillis?.let {
-                        addQueryParameter("period2", (it / 1000L).toString())
-                    }
-                },
-            headers = yahooHeaders()
-        )?.let { root ->
-            val result = root.firstObject("chart", "result", "0") ?: return@let emptyList()
-            val timestamps = result.objectOrArrayAt("timestamp")
-            val quote = result.firstObject("indicators", "quote", "0") ?: return@let emptyList()
+        return bareResult
+    }
 
-            val timestampValues = (timestamps as? JsonArray)
-                ?.mapNotNull { it.jsonPrimitive.longOrNull }
-                .orEmpty()
-            val closes = quote.objectOrArrayAt("close") as? JsonArray
-            val volumes = quote.objectOrArrayAt("volume") as? JsonArray
+    private suspend fun fetchChartJson(
+        yahooSymbol: String,
+        request: MarketDataRequest
+    ) = getJson(
+        "$quoteBaseUrl/v8/finance/chart/$yahooSymbol".toHttpUrl().newBuilder()
+            .addQueryParameter("interval", mapInterval(request.normalizedInterval))
+            .addQueryParameter("range", mapRange(request)),
+        headers = yahooHeaders()
+    )?.firstObject("chart", "result", "0")
 
-            timestampValues.mapIndexedNotNull { index, timestamp ->
-                val close = closes?.getOrNull(index)?.jsonPrimitive?.doubleOrNull
-                val volume = volumes?.getOrNull(index)?.jsonPrimitive?.longOrNull
-                buildHistoryPoint(
-                    timestamp = timestamp * 1000L,
-                    close = close,
-                    volume = volume
-                )
-            }.sortedBy { it.timestamp }.takeLast(request.limit)
-        } ?: emptyList()
+    /**
+     * Extract stock quote data from the v8 chart meta field.
+     * Fields available in meta: regularMarketPrice, chartPreviousClose,
+     * regularMarketDayHigh/Low, regularMarketVolume, longName, shortName,
+     * fiftyTwoWeekHigh/Low, currency.
+     */
+    private fun extractStockFromChart(
+        result: kotlinx.serialization.json.JsonObject,
+        request: MarketDataRequest
+    ): com.stocksense.app.data.model.StockData? {
+        val meta = result.objectAt("meta") ?: return null
+        val price = meta.double("regularMarketPrice")
+        val previousClose = meta.double("chartPreviousClose")
+        val changePercent = if (price != null && previousClose != null && previousClose != 0.0) {
+            ((price - previousClose) / previousClose) * 100.0
+        } else {
+            null
+        }
+        return buildStockData(
+            symbol = request.symbol,   // always use the DB key, not Yahoo's suffixed symbol
+            name = meta.string("longName", "shortName") ?: request.displayName,
+            price = price,
+            previousClose = previousClose,
+            changePercent = changePercent,
+            marketCap = null,   // not in chart meta; acceptable trade-off
+            sector = ""
+        )
+    }
+
+    /** Extract OHLCV history from v8 chart indicators. */
+    private fun extractHistoryFromChart(
+        result: kotlinx.serialization.json.JsonObject,
+        request: MarketDataRequest
+    ): List<com.stocksense.app.data.model.HistoryPoint> {
+        val timestamps = result.objectOrArrayAt("timestamp")
+        val quote = result.firstObject("indicators", "quote", "0") ?: return emptyList()
+
+        val timestampValues = (timestamps as? JsonArray)
+            ?.mapNotNull { it.jsonPrimitive.longOrNull }
+            .orEmpty()
+        val closes = quote.objectOrArrayAt("close") as? JsonArray
+        val volumes = quote.objectOrArrayAt("volume") as? JsonArray
+
+        return timestampValues.mapIndexedNotNull { index, timestamp ->
+            val close = closes?.getOrNull(index)?.jsonPrimitive?.doubleOrNull
+            val volume = volumes?.getOrNull(index)?.jsonPrimitive?.longOrNull
+            buildHistoryPoint(
+                timestamp = timestamp * 1000L,
+                close = close,
+                volume = volume
+            )
+        }.sortedBy { it.timestamp }.takeLast(request.limit)
+    }
 
     private fun yahooHeaders(): Map<String, String> = mapOf(
         "User-Agent" to userAgent,
@@ -144,6 +156,9 @@ class YahooFinanceProvider(
     }
 
     private fun mapRange(request: MarketDataRequest): String = when {
+        // For quote/metadata requests use 1d so chartPreviousClose reflects
+        // yesterday's close, not the close N months ago.
+        request.requirementType != MarketDataRequirementType.DAILY_HISTORY -> "1d"
         request.startTimeMillis != null && request.endTimeMillis != null -> "max"
         request.limit <= 10 -> "1mo"
         request.limit <= 30 -> "3mo"
