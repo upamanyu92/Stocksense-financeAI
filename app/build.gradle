@@ -6,22 +6,9 @@ plugins {
     id 'com.google.devtools.ksp'
 }
 
-// ── Bundle SmolLM2 model task ──────────────────────────────────────────────────
-// Run: ./gradlew downloadBundledModel
-// Places the GGUF in assets/models/ so it's embedded in the APK and requires
-// no network download on the device. copyBundledModelIfNeeded() in StockSenseApp
-// extracts it to filesDir/models/ on first launch.
-tasks.register('downloadBundledModel', Exec) {
-    def modelFile = file("src/main/assets/models/smollm2-135m-instruct-v0.2-q4_k_m.gguf")
-    def url = "https://huggingface.co/HuggingFaceTB/smollm2-135M-instruct-v0.2-GGUF/resolve/main/smollm2-135m-instruct-v0.2-q4_k_m.gguf"
-    onlyIf { !modelFile.exists() }
-    doFirst {
-        modelFile.parentFile.mkdirs()
-        println "Downloading SmolLM2-135M model (~80 MB)..."
-    }
-    commandLine 'curl', '-L', '--progress-bar', '-o', modelFile.absolutePath, url
-    doLast { println "Model downloaded: ${modelFile.absolutePath}" }
-}
+// Note: SmolLM2 and other GGUF models are downloaded at runtime via BitNetModelDownloader.
+// Do NOT commit *.gguf files to git (they exceed GitHub's 100 MB file size limit).
+// The downloadBundledModel Gradle task has been intentionally removed.
 
 
 def keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -66,6 +53,7 @@ ext.abiCodes = ['arm64-v8a': 1, 'x86_64': 2]
 android {
     namespace 'com.stocksense.app'
     compileSdk 36
+    ndkVersion '26.1.10909125'
 
     defaultConfig {
         applicationId "com.stocksense.app"
@@ -154,11 +142,6 @@ android {
         }
     }
 
-    // Keep GGUF model files uncompressed so AssetManager can read them via
-    // file descriptor without decompressing into memory.
-    aaptOptions {
-        noCompress "gguf"
-    }
 
     // Native llama.cpp build – opt-in via gradle.properties or -P flag.
     // Set stocksense.enableNativeLlm=true and place llama.cpp source under

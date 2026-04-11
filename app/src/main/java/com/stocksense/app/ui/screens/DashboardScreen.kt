@@ -11,8 +11,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowOutward
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.CreditScore
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -40,8 +40,8 @@ fun DashboardScreen(
     viewModel: DashboardViewModel,
     searchViewModel: SearchViewModel,
     onStockClick: (String) -> Unit,
-    onProfileClick: () -> Unit = {},
-    onViewAllSearchResults: (String) -> Unit = {}
+    onViewAllSearchResults: (String) -> Unit = {},
+    onNavigateToCredence: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val searchState by searchViewModel.uiState.collectAsState()
@@ -57,21 +57,27 @@ fun DashboardScreen(
                         Image(
                             painter = painterResource(id = R.drawable.ic_app_logo),
                             contentDescription = "SenseQuant Logo",
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(28.dp)
                         )
-                        Text("SenseQuant", fontWeight = FontWeight.SemiBold)
+                        Text("QuantSense", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
                     }
                 },
                 actions = {
                     IconButton(onClick = { /* notifications */ }) {
-                        Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+                        Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = MutedGrey)
                     }
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = ElectricBlue)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = DeepBlack,
+                    titleContentColor = Color.White,
+                    actionIconContentColor = MutedGrey
+                )
             )
-        }
+        },
+        containerColor = DeepBlack
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -92,7 +98,6 @@ fun DashboardScreen(
                     searchViewModel.clearSearch()
                     viewModel.updateSearchQuery("")
                 },
-                onProfileClick = onProfileClick
             )
 
             // Search dropdown overlay
@@ -117,6 +122,9 @@ fun DashboardScreen(
 
             PredictionsSection(uiState.predictions)
 
+            // Quick access — Credence AI credit scoring
+            CredenceAICard(onClick = onNavigateToCredence)
+
             WatchlistSection(
                 title = if (uiState.searchQuery.isBlank()) "Watchlist" else "Search Results",
                 stocks = uiState.filteredStocks,
@@ -137,27 +145,9 @@ fun DashboardScreen(
 private fun HeaderBar(
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
-    onClearSearch: () -> Unit,
-    onProfileClick: () -> Unit
+    onClearSearch: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("SenseQuant Command Center", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            }
-            IconButton(onClick = onProfileClick) {
-                Icon(
-                    Icons.Default.Person,
-                    contentDescription = "Profile",
-                    tint = MutedGrey
-                )
-            }
-        }
-
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchQueryChange,
@@ -202,16 +192,24 @@ private fun HeroPortfolioCard(snapshot: PortfolioSnapshot) {
                 )
                 .padding(20.dp)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Portfolio", color = MutedGrey, fontSize = 13.sp)
-                Text(
-                    text = "₹${"%,.0f".format(snapshot.totalValue)}",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.ExtraBold
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    PnlPill(value = snapshot.dailyPnl, percent = snapshot.dailyPercent)
-                    LevelPill(level = snapshot.level, streak = snapshot.streakDays)
+            if (snapshot.level == "No Portfolio") {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Portfolio", color = MutedGrey, fontSize = 13.sp)
+                    Text("No portfolio data added yet", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Add holdings in the Portfolio tab to see your performance here.", color = MutedGrey, fontSize = 13.sp)
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Portfolio", color = MutedGrey, fontSize = 13.sp)
+                    Text(
+                        text = "₹${"%,.0f".format(snapshot.totalValue)}",
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        PnlPill(value = snapshot.dailyPnl, percent = snapshot.dailyPercent)
+                        LevelPill(level = snapshot.level, streak = snapshot.streakDays)
+                    }
                 }
             }
         }
@@ -509,6 +507,53 @@ private fun WeightingRulesSection(rules: List<WeightingRule>, stopWords: List<St
         }
         if (stopWords.isNotEmpty()) {
             Text("Context stop words: ${stopWords.joinToString()}", color = MutedGrey, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun CredenceAICard(onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = Graphite),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .background(
+                    Brush.linearGradient(
+                        listOf(AuroraPurple.copy(alpha = 0.12f), GlassSurface)
+                    )
+                )
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Icon(
+                Icons.Default.CreditScore,
+                contentDescription = null,
+                tint = AuroraPurple,
+                modifier = Modifier.size(36.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Credence AI",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = AuroraPurple
+                )
+                Text(
+                    "Tatva Ank Credit Scoring · Run AI-powered credit analysis",
+                    color = MutedGrey,
+                    fontSize = 12.sp
+                )
+            }
+            Icon(
+                Icons.Default.ArrowOutward,
+                contentDescription = null,
+                tint = AuroraPurple.copy(alpha = 0.6f)
+            )
         }
     }
 }

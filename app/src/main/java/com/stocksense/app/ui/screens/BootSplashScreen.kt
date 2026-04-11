@@ -286,7 +286,7 @@ fun BootSplashScreen() {
             Spacer(modifier = Modifier.height(20.dp))
 
             Text(
-                text = "SenseQuant",
+                text = "QuantSense",
                 color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold,
                 modifier = Modifier.offset(y = bannerOffsetY.dp).alpha(bannerAlpha)
             )

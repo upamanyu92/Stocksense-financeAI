@@ -37,11 +37,16 @@ class ModelDownloadWorker(
     override suspend fun doWork(): Result {
         val downloader = BitNetModelDownloader(applicationContext)
 
+        if (downloader.hasActiveForegroundDownload()) {
+            Log.i(TAG, "Foreground model download active – skipping worker run")
+            return Result.success()
+        }
+
         // Auto-select quality mode based on device RAM (same logic as LLMInsightEngine).
         val mode = autoSelectMode()
 
-        if (downloader.isModelAvailable(mode)) {
-            Log.i(TAG, "Model for $mode already on disk – nothing to do")
+        if (downloader.hasAnyDiscoveredModel()) {
+            Log.i(TAG, "Usable model already on disk – nothing to do")
             return Result.success()
         }
 

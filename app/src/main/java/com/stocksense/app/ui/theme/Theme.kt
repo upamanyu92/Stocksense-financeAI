@@ -1,6 +1,5 @@
 package com.stocksense.app.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -33,7 +32,7 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun StockSenseTheme(  // internal name preserved for code stability
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = true,          // always dark – the entire UI is built on dark surfaces
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme

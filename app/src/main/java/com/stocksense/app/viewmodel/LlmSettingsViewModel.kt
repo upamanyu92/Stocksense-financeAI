@@ -8,6 +8,8 @@ import com.stocksense.app.engine.BitNetModelDownloader
 import com.stocksense.app.engine.LLMInsightEngine
 import com.stocksense.app.engine.LlmStatus
 import com.stocksense.app.engine.QualityMode
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.File
@@ -17,6 +19,7 @@ data class ModelOption(
     val description: String,
     val sizeLabel: String,
     val mode: QualityMode,
+    val fileName: String,
     val downloadUrl: String,
     val recommendedRamGb: Int,
     val recommended: Boolean = false,
@@ -26,6 +29,9 @@ data class ModelOption(
 data class LlmSettingsUiState(
     val status: LlmStatus = LlmStatus.NATIVE_UNAVAILABLE,
     val currentModelName: String = "",
+    val selectedModelIndex: Int = defaultSelectedModelIndex(),
+    val activeDownloadModelName: String = "",
+    val activeDownloadFileName: String = "",
     val isNativeAvailable: Boolean = false,
     val isModelDownloaded: Boolean = false,
     val lastInferenceTimeMs: Long = 0L,
@@ -45,7 +51,8 @@ private fun defaultModels() = listOf(
         description = "Bundleable with APK · no download needed · 135M params",
         sizeLabel = "~80 MB",
         mode = QualityMode.LITE,
-        downloadUrl = "https://huggingface.co/HuggingFaceTB/smollm2-135M-instruct-v0.2-GGUF/resolve/main/smollm2-135m-instruct-v0.2-q4_k_m.gguf",
+        fileName = "smollm2-135m-instruct-v0.2-q4_k_m.gguf",
+        downloadUrl = "https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf",
         recommendedRamGb = 1,
         explanation = "Smallest model that can be bundled inside the APK (~80 MB). " +
             "Place the GGUF at app/src/main/assets/models/ for zero-download local testing."
@@ -55,6 +62,7 @@ private fun defaultModels() = listOf(
         description = "Efficient, strong reasoning (2.7B, Q4_K_M)",
         sizeLabel = "~1.6 GB",
         mode = QualityMode.LITE,
+        fileName = "phi-2.Q4_K_M.gguf",
         downloadUrl = "https://huggingface.co/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf",
         recommendedRamGb = 4,
         recommended = true
@@ -64,6 +72,7 @@ private fun defaultModels() = listOf(
         description = "Ultra-light, fast (1.1B, Q4_K_M)",
         sizeLabel = "~0.8 GB",
         mode = QualityMode.LITE,
+        fileName = "tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
         downloadUrl = "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
         recommendedRamGb = 2
     ),
@@ -72,6 +81,7 @@ private fun defaultModels() = listOf(
         description = "Richer dialogue, larger (7B, Q4_K_M)",
         sizeLabel = "~4.2 GB",
         mode = QualityMode.BALANCED,
+        fileName = "llama-2-7b-chat.Q4_K_M.gguf",
         downloadUrl = "https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/resolve/main/llama-2-7b-chat.Q4_K_M.gguf",
         recommendedRamGb = 6
     ),
@@ -80,10 +90,14 @@ private fun defaultModels() = listOf(
         description = "Efficient, accurate (7B, Q4_K_M)",
         sizeLabel = "~4.1 GB",
         mode = QualityMode.PRO,
+        fileName = "mistral-7b-instruct-v0.2.Q4_K_M.gguf",
         downloadUrl = "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf",
         recommendedRamGb = 6
     )
 )
+
+private fun defaultSelectedModelIndex(): Int = defaultModels().indexOfFirst { it.recommended }
+    .let { if (it >= 0) it else 0 }
 
 class LlmSettingsViewModel(
     private val downloader: BitNetModelDownloader,
@@ -92,6 +106,8 @@ class LlmSettingsViewModel(
 
     private val _uiState = MutableStateFlow(LlmSettingsUiState())
     val uiState: StateFlow<LlmSettingsUiState> = _uiState.asStateFlow()
+    private var downloadJob: Job? = null
+    private var activeForegroundDownloadSessionId: Long? = null
 
     init {
         refreshStatus()
@@ -116,7 +132,7 @@ class LlmSettingsViewModel(
         _uiState.update {
             it.copy(
                 status = metrics.status,
-                currentModelName = metrics.modelFileName,
+                currentModelName = metrics.displayModelName,
                 isNativeAvailable = metrics.isNativeAvailable,
                 isModelDownloaded = metrics.isModelDownloaded,
                 lastInferenceTimeMs = metrics.lastInferenceTimeMs
@@ -124,37 +140,106 @@ class LlmSettingsViewModel(
         }
     }
 
-    fun downloadModel(mode: QualityMode) {
-        if (_uiState.value.isDownloading) return
+    fun selectModel(index: Int) {
+        val state = _uiState.value
+        if (index !in state.availableModels.indices || index == state.selectedModelIndex) return
+
+        cancelActiveDownload(reason = "model_switch")
+        downloader.cleanupTemporaryModelFiles()
+        _uiState.update {
+            it.copy(
+                selectedModelIndex = index,
+                downloadProgress = 0f,
+                error = null,
+                liveCheckMessage = null
+            )
+        }
+        refreshStatus()
+    }
+
+    fun downloadSelectedModel() {
+        val state = _uiState.value
+        val model = state.availableModels.getOrNull(state.selectedModelIndex) ?: return
         if (!_uiState.value.isNativeAvailable) {
             showNativeRuntimeError()
             return
         }
-        _uiState.update { it.copy(isDownloading = true, downloadProgress = 0f, error = null) }
+        cancelActiveDownload(reason = "restart_download")
+        val sessionId = downloader.prepareForegroundDownload(model.name, model.fileName)
+        activeForegroundDownloadSessionId = sessionId
+        _uiState.update {
+            it.copy(
+                isDownloading = true,
+                downloadProgress = 0f,
+                activeDownloadModelName = model.name,
+                activeDownloadFileName = model.fileName,
+                error = null,
+                liveCheckMessage = null
+            )
+        }
 
-        viewModelScope.launch {
+        downloadJob = viewModelScope.launch {
             try {
-                val success = downloader.download(mode) { progress ->
-                    _uiState.update { it.copy(downloadProgress = progress) }
-                }
+                val success = downloader.downloadToFile(
+                    fileName = model.fileName,
+                    url = model.downloadUrl,
+                    onProgress = { progress ->
+                        if (activeForegroundDownloadSessionId == sessionId) {
+                            _uiState.update {
+                                it.copy(
+                                    downloadProgress = progress,
+                                    activeDownloadModelName = model.name,
+                                    activeDownloadFileName = model.fileName
+                                )
+                            }
+                        }
+                    },
+                    foregroundSessionId = sessionId
+                )
+                if (activeForegroundDownloadSessionId != sessionId) return@launch
                 if (success) {
-                    llmEngine.loadModel(mode)
+                    llmEngine.loadModel(File(downloader.modelsDir, model.fileName), model.mode)
                     refreshStatus()
-                } else {
                     _uiState.update {
-                        it.copy(error = "Model download failed. The model file may be unavailable online. Please use 'Import Local Model' below to add a compatible GGUF file from your device.")
+                        it.copy(
+                            isDownloading = false,
+                            downloadProgress = 1f,
+                            activeDownloadModelName = "",
+                            activeDownloadFileName = ""
+                        )
+                    }
+                } else {
+                    refreshStatus()
+                    _uiState.update {
+                        it.copy(
+                            isDownloading = false,
+                            activeDownloadModelName = "",
+                            activeDownloadFileName = "",
+                            error = "Model download failed. The model file may be unavailable online. Please use 'Import Local Model' below to add a compatible GGUF file from your device."
+                        )
                     }
                 }
+            } catch (_: CancellationException) {
             } catch (e: Exception) {
+                if (activeForegroundDownloadSessionId != sessionId) return@launch
                 val is404 = e.message?.contains("404") == true
                 val msg = if (is404) {
                     "Model download failed (404 Not Found). The model file is not available online. Please use 'Import Local Model' below to add a compatible GGUF file from your device."
                 } else {
                     "Download error: ${e.message}"
                 }
-                _uiState.update { it.copy(error = msg) }
+                _uiState.update {
+                    it.copy(
+                        isDownloading = false,
+                        activeDownloadModelName = "",
+                        activeDownloadFileName = "",
+                        error = msg
+                    )
+                }
             } finally {
-                _uiState.update { it.copy(isDownloading = false) }
+                if (activeForegroundDownloadSessionId == sessionId) {
+                    activeForegroundDownloadSessionId = null
+                }
             }
         }
     }
@@ -218,9 +303,12 @@ class LlmSettingsViewModel(
     }
 
     fun deleteModels() {
-        llmEngine.unloadModel()
-        downloader.clearModels()
-        refreshStatus()
+        viewModelScope.launch {
+            cancelActiveDownload(reason = "delete_models")
+            llmEngine.unloadModel()
+            downloader.clearModels()
+            refreshStatus()
+        }
     }
 
     fun reloadModel() {
@@ -263,6 +351,21 @@ class LlmSettingsViewModel(
                     )
                 }
             }
+        }
+    }
+
+    private fun cancelActiveDownload(reason: String) {
+        downloadJob?.cancel()
+        downloadJob = null
+        activeForegroundDownloadSessionId?.let { downloader.cancelForegroundDownload(it, reason) }
+        activeForegroundDownloadSessionId = null
+        _uiState.update {
+            it.copy(
+                isDownloading = false,
+                downloadProgress = 0f,
+                activeDownloadModelName = "",
+                activeDownloadFileName = ""
+            )
         }
     }
 }

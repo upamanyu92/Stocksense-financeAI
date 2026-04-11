@@ -5,6 +5,11 @@ import android.content.Context
 import android.util.Log
 import com.stocksense.app.data.model.PredictionResult
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -42,7 +47,39 @@ data class AgenticMetrics(
     val lastInferenceTimeMs: Long = 0L,
     val cacheHits: Int = 0,
     val totalInferences: Int = 0
-)
+) {
+    /** User-facing model name derived from the raw GGUF filename. */
+    val displayModelName: String
+        get() = friendlyModelName(modelFileName)
+
+    companion object {
+        /** Map known GGUF filenames to friendly names. */
+        fun friendlyModelName(fileName: String): String {
+            if (fileName.isBlank()) return ""
+            val lower = fileName.lowercase()
+            return when {
+                lower.contains("smollm2-135m")   -> "SmolLM2 135M"
+                lower.contains("smollm2")        -> "SmolLM2"
+                lower.contains("phi-2")
+                    || lower.contains("phi2")    -> "Phi-2 2.7B"
+                lower.contains("mistral-7b-instruct-v0.2") -> "Mistral 7B Instruct v0.2"
+                lower.contains("mistral")        -> "Mistral 7B"
+                lower.contains("bitnet")
+                    || lower == "ggml-model-i2_s.gguf" -> "BitNet b1.58 2B-4T"
+                lower.contains("phi-3")          -> "Phi-3 Mini"
+                lower.contains("llama-3")        -> "Llama 3"
+                lower.contains("llama-2")        -> "Llama 2"
+                lower.contains("gemma")          -> "Gemma"
+                lower.contains("qwen")           -> "Qwen"
+                lower.contains("tinyllama")      -> "TinyLlama"
+                else -> fileName.removeSuffix(".gguf")
+                    .replace(Regex("[-_]"), " ")
+                    .replace(Regex("\\s+"), " ")
+                    .trim()
+            }
+        }
+    }
+}
 
 /**
  * Quality modes that adapt model size to device capabilities.
@@ -79,19 +116,37 @@ enum class QualityMode {
  */
 class LLMInsightEngine(private val context: Context) {
 
+    @Volatile
     private var modelHandle: Long = 0L          // llama.cpp model pointer (0 = unloaded)
+    @Volatile
     private var contextHandle: Long = 0L        // llama.cpp context pointer
+    @Volatile
     private var currentMode: QualityMode? = null
+    /** Filename of the actually loaded model (set after successful load). */
+    @Volatile
+    private var loadedModelFileName: String = ""
     private var isNativeAvailable = false
 
-    /** Current status of the LLM agent. */
-    @Volatile
-    var status: LlmStatus = LlmStatus.NATIVE_UNAVAILABLE
-        private set
+    /** Serialises all JNI calls — llama.cpp context is not thread-safe. */
+    private val inferenceMutex = Mutex()
+
+    /** Reactive status exposed as a StateFlow so UI / ViewModels react instantly. */
+    private val _statusFlow = MutableStateFlow(LlmStatus.NATIVE_UNAVAILABLE)
+    val statusFlow: StateFlow<LlmStatus> = _statusFlow.asStateFlow()
+
+    /** Current status of the LLM agent (snapshot for backward-compat call sites). */
+    val status: LlmStatus get() = _statusFlow.value
+
+    // LOAD_FAILED cooldown — prevents re-trying a failing load on every inference call.
+    @Volatile private var loadFailedAtMs: Long = 0L
+    private val LOAD_FAILED_COOLDOWN_MS = 5 * 60 * 1_000L   // 5 minutes
 
     /** Tracks inference performance metrics. */
+    @Volatile
     private var lastInferenceTimeMs: Long = 0L
+    @Volatile
     private var cacheHitCount: Int = 0
+    @Volatile
     private var totalInferenceCount: Int = 0
 
     /** Helper used to locate downloaded model files. */
@@ -103,19 +158,39 @@ class LLMInsightEngine(private val context: Context) {
 
     init {
         isNativeAvailable = tryLoadNativeLib()
-        status = if (isNativeAvailable) LlmStatus.MODEL_NOT_DOWNLOADED else LlmStatus.NATIVE_UNAVAILABLE
+        _statusFlow.value = if (isNativeAvailable) LlmStatus.MODEL_NOT_DOWNLOADED else LlmStatus.NATIVE_UNAVAILABLE
+    }
+
+    /**
+     * Ensure a model is loaded before inference.
+     * No-op if the model is already [LlmStatus.READY].
+     * Guards against concurrent parallel calls (e.g. CredenceAI parallel agents)
+     * and adds a cooldown after LOAD_FAILED to avoid expensive retry storms.
+     */
+    suspend fun ensureModelLoaded(mode: QualityMode = autoSelectMode()) {
+        // Already loaded with the same mode — nothing to do.
+        if (status == LlmStatus.READY && modelHandle != 0L && currentMode == mode) return
+        // Another coroutine is already loading — wait for it to finish, don't stack loads.
+        if (status == LlmStatus.LOADING) return
+        // Failed recently — honour cooldown to avoid hammering missing model files.
+        if (status == LlmStatus.LOAD_FAILED &&
+            System.currentTimeMillis() - loadFailedAtMs < LOAD_FAILED_COOLDOWN_MS) return
+        loadModel(mode)
     }
 
     /** Get current agentic metrics snapshot. */
     fun getMetrics(): AgenticMetrics {
         val mode = currentMode ?: autoSelectMode()
-        val modelFile = preferredModelFile(mode)
+        val discoveredModel = downloader.discoverExistingModels(mode).firstOrNull()
+        val modelFile = discoveredModel ?: preferredModelFile(mode)
+        // Use the actually loaded model name when available; fall back to preferred.
+        val effectiveFileName = loadedModelFileName.ifBlank { modelFile.name }
         return AgenticMetrics(
             status = status,
             qualityMode = mode,
             isNativeAvailable = isNativeAvailable,
-            isModelDownloaded = modelFile.exists(),
-            modelFileName = modelFile.name,
+            isModelDownloaded = discoveredModel != null,
+            modelFileName = effectiveFileName,
             lastInferenceTimeMs = lastInferenceTimeMs,
             cacheHits = cacheHitCount,
             totalInferences = totalInferenceCount
@@ -129,49 +204,81 @@ class LLMInsightEngine(private val context: Context) {
      * Call this on a background thread (e.g., from a coroutine scope).
      */
     suspend fun loadModel(mode: QualityMode = autoSelectMode()) = withContext(Dispatchers.IO) {
-        if (currentMode == mode && modelHandle != 0L) return@withContext
-        unloadModel()
-        currentMode = mode
-        if (!isNativeAvailable) {
-            Log.i(TAG, "Native library not available – using template fallback")
-            status = LlmStatus.NATIVE_UNAVAILABLE
-            return@withContext
+        loadModelInternal(mode, candidateModelFiles(mode))
+    }
+
+    /** Load a specific model file first, then fall back to discovered candidates for the same mode. */
+    suspend fun loadModel(modelFile: File, mode: QualityMode = autoSelectMode()) = withContext(Dispatchers.IO) {
+        val candidates = buildList {
+            if (modelFile.exists() && modelFile.length() > 0L) add(modelFile)
+            addAll(candidateModelFiles(mode).filterNot { it.absolutePath == modelFile.absolutePath })
         }
-        val modelFile = preferredModelFile(mode)
-        if (!modelFile.exists()) {
-            Log.w(TAG, "Model file not found: ${modelFile.absolutePath} – using fallback")
-            status = LlmStatus.MODEL_NOT_DOWNLOADED
-            return@withContext
-        }
-        status = LlmStatus.LOADING
-        try {
-            val loadedModelHandle = LlamaCpp.loadModel(modelFile.absolutePath, nGpuLayers(mode))
-            val loadedContextHandle = if (loadedModelHandle != 0L) {
-                LlamaCpp.createContext(loadedModelHandle, contextSizeFor(mode))
-            } else {
-                0L
+        loadModelInternal(mode, candidates)
+    }
+
+    private suspend fun loadModelInternal(mode: QualityMode, candidates: List<File>) {
+        inferenceMutex.withLock {
+            val preferredPath = candidates.firstOrNull()?.absolutePath
+            if (currentMode == mode && modelHandle != 0L &&
+                (preferredPath == null || loadedModelFileName == File(preferredPath).name)
+            ) return
+
+            unloadModelInternal()
+            currentMode = mode
+            if (!isNativeAvailable) {
+                Log.i(TAG, "Native library not available – using template fallback")
+                _statusFlow.value = LlmStatus.NATIVE_UNAVAILABLE
+                return
             }
-            if (loadedModelHandle == 0L || loadedContextHandle == 0L) {
-                status = LlmStatus.LOAD_FAILED
-                Log.e(TAG, "Model load returned an invalid native handle")
-                return@withContext
+            if (candidates.isEmpty()) {
+                Log.w(TAG, "No model files found on disk – using fallback")
+                _statusFlow.value = LlmStatus.MODEL_NOT_DOWNLOADED
+                return
             }
-            modelHandle = loadedModelHandle
-            contextHandle = loadedContextHandle
-            status = LlmStatus.READY
-            Log.i(TAG, "BitNet LLM loaded: ${modelFile.name} (mode=$mode)")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to load LLM: ${e.message}")
+            _statusFlow.value = LlmStatus.LOADING
+            for (candidate in candidates) {
+                try {
+                    Log.i(TAG, "Attempting to load model: ${candidate.name}")
+                    val loadedModelHandle = LlamaCpp.loadModel(candidate.absolutePath, nGpuLayers(mode))
+                    val loadedContextHandle = if (loadedModelHandle != 0L) {
+                        LlamaCpp.createContext(loadedModelHandle, contextSizeFor(mode))
+                    } else {
+                        0L
+                    }
+                    if (loadedModelHandle == 0L || loadedContextHandle == 0L) {
+                        Log.w(TAG, "Failed to load ${candidate.name} – trying next candidate")
+                        if (loadedModelHandle != 0L) {
+                            try { LlamaCpp.freeModel(loadedModelHandle) } catch (_: Exception) {}
+                        }
+                        continue
+                    }
+                    modelHandle = loadedModelHandle
+                    contextHandle = loadedContextHandle
+                    loadedModelFileName = candidate.name
+                    _statusFlow.value = LlmStatus.READY
+                    Log.i(TAG, "BitNet LLM loaded: ${candidate.name} (mode=$mode)")
+                    return
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to load ${candidate.name}: ${e.message}")
+                }
+            }
             modelHandle = 0L
             contextHandle = 0L
-            status = LlmStatus.LOAD_FAILED
+            loadFailedAtMs = System.currentTimeMillis()
+            _statusFlow.value = LlmStatus.LOAD_FAILED
+            Log.e(TAG, "All model candidates failed to load")
         }
     }
 
     /**
      * Unload the model and free native memory.
      */
-    fun unloadModel() {
+    suspend fun unloadModel() {
+        inferenceMutex.withLock { unloadModelInternal() }
+    }
+
+    /** Internal unload — caller MUST hold [inferenceMutex]. */
+    private fun unloadModelInternal() {
         if (modelHandle != 0L && isNativeAvailable) {
             try {
                 LlamaCpp.freeContext(contextHandle)
@@ -182,6 +289,7 @@ class LLMInsightEngine(private val context: Context) {
         }
         modelHandle = 0L
         contextHandle = 0L
+        loadedModelFileName = ""
         currentMode = null
     }
 
@@ -201,19 +309,22 @@ class LLMInsightEngine(private val context: Context) {
             }
         }
 
+        ensureModelLoaded()
         val startTime = System.currentTimeMillis()
 
         val insight = if (modelHandle != 0L && isNativeAvailable) {
             val prompt = buildPrompt(prediction, recentPrices)
             val truncated = truncatePromptIfNeeded(prompt)
-            try {
-                val result = LlamaCpp.runInference(contextHandle, truncated, maxTokens = 200)
-                totalInferenceCount++
-                result
-            } catch (e: Exception) {
-                Log.e(TAG, "Inference error: ${e.message}")
-                status = LlmStatus.TEMPLATE_FALLBACK
-                templateInsight(prediction)
+            inferenceMutex.withLock {
+                try {
+                    val result = LlamaCpp.runInference(contextHandle, truncated, maxTokens = 200)
+                    totalInferenceCount++
+                    result.takeIf { it.isNotBlank() } ?: templateInsight(prediction)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Inference error: ${e.message}")
+                    _statusFlow.value = LlmStatus.TEMPLATE_FALLBACK
+                    templateInsight(prediction)
+                }
             }
         } else {
             templateInsight(prediction)
@@ -233,19 +344,22 @@ class LLMInsightEngine(private val context: Context) {
         symbol: String,
         recentPrices: List<Double>
     ): String = withContext(Dispatchers.IO) {
+        ensureModelLoaded()
         val startTime = System.currentTimeMillis()
 
         val response = if (modelHandle != 0L && isNativeAvailable) {
             val prompt = buildChatPrompt(userMessage, symbol, recentPrices)
             val truncated = truncatePromptIfNeeded(prompt)
-            try {
-                val result = LlamaCpp.runInference(contextHandle, truncated, maxTokens = 300)
-                totalInferenceCount++
-                result
-            } catch (e: Exception) {
-                Log.e(TAG, "Chat inference error: ${e.message}")
-                status = LlmStatus.TEMPLATE_FALLBACK
-                templateChatResponse(userMessage, symbol)
+            inferenceMutex.withLock {
+                try {
+                    val result = LlamaCpp.runInference(contextHandle, truncated, maxTokens = 300)
+                    totalInferenceCount++
+                    result.takeIf { it.isNotBlank() } ?: templateChatResponse(userMessage, symbol)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Chat inference error: ${e.message}")
+                    _statusFlow.value = LlmStatus.TEMPLATE_FALLBACK
+                    templateChatResponse(userMessage, symbol)
+                }
             }
         } else {
             templateChatResponse(userMessage, symbol)
@@ -263,17 +377,20 @@ class LLMInsightEngine(private val context: Context) {
      */
     suspend fun generate(prompt: String, maxTokens: Int = 400, fallback: () -> String): String =
         withContext(Dispatchers.IO) {
+            ensureModelLoaded()
             val startTime = System.currentTimeMillis()
             val result = if (modelHandle != 0L && isNativeAvailable) {
                 val truncated = truncatePromptIfNeeded(prompt, maxChars = 1200)
-                try {
-                    val r = LlamaCpp.runInference(contextHandle, truncated, maxTokens = maxTokens)
-                    totalInferenceCount++
-                    r
-                } catch (e: Exception) {
-                    Log.e(TAG, "generate() inference error: ${e.message}")
-                    status = LlmStatus.TEMPLATE_FALLBACK
-                    fallback()
+                inferenceMutex.withLock {
+                    try {
+                        val r = LlamaCpp.runInference(contextHandle, truncated, maxTokens = maxTokens)
+                        totalInferenceCount++
+                        r.takeIf { it.isNotBlank() } ?: fallback()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "generate() inference error: ${e.message}")
+                        _statusFlow.value = LlmStatus.TEMPLATE_FALLBACK
+                        fallback()
+                    }
                 }
             } else {
                 fallback()
@@ -288,7 +405,7 @@ class LLMInsightEngine(private val context: Context) {
      */
     suspend fun analyzePortfolio(portfolioSummary: String): String = withContext(Dispatchers.IO) {
         val prompt = """
-You are SenseQuant, an expert financial advisor AI. Analyse the following portfolio and provide:
+You are QuantSense, an expert financial advisor AI. Analyse the following portfolio and provide:
 1. TOP 3 recommended exits (sell reasons)
 2. TOP 3 holds (why to keep)
 3. TOP 2 rebalancing suggestions
@@ -307,7 +424,7 @@ ANALYSIS:""".trimIndent()
 
     private fun templatePortfolioAnalysis(): String {
         return """
-Portfolio Analysis by SenseQuant AI (Template Mode – install LLM model for deeper analysis):
+Portfolio Analysis by QuantSense AI (Template Mode – install LLM model for deeper analysis):
 
 **Recommended Exits:**
 • Review holdings with unrealised P&L below -20% — evaluate if thesis has changed.
@@ -325,7 +442,7 @@ Portfolio Analysis by SenseQuant AI (Template Mode – install LLM model for dee
 
 **Risk Rating: Medium**
 Mixed equity + commodity allocation. Several sectoral bets increase concentration risk.
-Install the SenseQuant AI model for personalised, data-driven recommendations.
+Install the QuantSense AI model for personalised, data-driven recommendations.
 """.trimIndent()
     }
 
@@ -337,17 +454,19 @@ Install the SenseQuant AI model for personalised, data-driven recommendations.
         }
 
         val startTime = System.currentTimeMillis()
-        return@withContext try {
-            val output = LlamaCpp.runInference(contextHandle, LIVE_CHECK_PROMPT, maxTokens = 8).trim()
-            lastInferenceTimeMs = System.currentTimeMillis() - startTime
-            totalInferenceCount++
-            val isHealthy = output.contains("OK", ignoreCase = true)
-            status = if (isHealthy) LlmStatus.READY else LlmStatus.LOAD_FAILED
-            isHealthy
-        } catch (e: Exception) {
-            Log.e(TAG, "Live check failed: ${e.message}")
-            status = LlmStatus.LOAD_FAILED
-            false
+        return@withContext inferenceMutex.withLock {
+            try {
+                val output = LlamaCpp.runInference(contextHandle, LIVE_CHECK_PROMPT, maxTokens = 8).trim()
+                lastInferenceTimeMs = System.currentTimeMillis() - startTime
+                totalInferenceCount++
+                val isHealthy = output.contains("OK", ignoreCase = true)
+                _statusFlow.value = if (isHealthy) LlmStatus.READY else LlmStatus.LOAD_FAILED
+                isHealthy
+            } catch (e: Exception) {
+                Log.e(TAG, "Live check failed: ${e.message}")
+                _statusFlow.value = LlmStatus.LOAD_FAILED
+                false
+            }
         }
     }
 
@@ -370,15 +489,15 @@ Install the SenseQuant AI model for personalised, data-driven recommendations.
     }
 
     private fun contextSizeFor(mode: QualityMode) = when (mode) {
-        QualityMode.LITE -> 512
-        QualityMode.BALANCED -> 1024
-        QualityMode.PRO -> 2048
+        QualityMode.LITE -> 1024
+        QualityMode.BALANCED -> 2048
+        QualityMode.PRO -> 4096
     }
 
-    private fun nGpuLayers(mode: QualityMode) = when (mode) {
-        QualityMode.LITE -> 0
-        QualityMode.BALANCED -> 20
-        QualityMode.PRO -> 35
+    private fun nGpuLayers(@Suppress("UNUSED_PARAMETER") mode: QualityMode): Int {
+        // The current Android native build links llama.cpp with CPU-only backends.
+        // Keep GPU offload disabled until an Android GPU backend is explicitly built.
+        return 0
     }
 
     private fun buildPrompt(prediction: PredictionResult, recentPrices: List<Double>): String {
@@ -415,8 +534,8 @@ Insight:""".trimIndent()
     private fun tryLoadNativeLib(): Boolean = try {
         System.loadLibrary("llama_jni")
         true
-    } catch (_: UnsatisfiedLinkError) {
-        Log.i(TAG, "llama native library not linked – template mode active")
+    } catch (e: UnsatisfiedLinkError) {
+        Log.i(TAG, "llama native library not linked – template mode active (${e.message})")
         false
     }
 
@@ -450,14 +569,21 @@ Answer:""".trimIndent()
         }
     }
 
+    /**
+     * Return the best available model file on disk, checked in priority order:
+     *   1. Catalogue model for the requested [mode] (e.g. ggml-model-i2_s.gguf)
+     *   2. User-imported GGUF
+     *   3. Bundled SmolLM2 nano model (always works with llama.cpp Q4_K_M)
+     */
     private fun preferredModelFile(mode: QualityMode): File {
-        val bundled = downloader.modelFileFor(mode)
-        if (bundled.exists()) {
-            return bundled
-        }
+        return downloader.discoverExistingModels(mode).firstOrNull() ?: downloader.modelFileFor(mode)
+    }
 
-        val imported = File(downloader.modelsDir, BitNetModelDownloader.IMPORTED_MODEL_FILE_NAME)
-        return if (imported.exists()) imported else bundled
+    /**
+     * Return all candidate model files in priority order for fallback loading.
+     */
+    private fun candidateModelFiles(mode: QualityMode): List<File> {
+        return downloader.discoverExistingModels(mode)
     }
 
     private data class CachedInsight(val text: String, val timestamp: Long)

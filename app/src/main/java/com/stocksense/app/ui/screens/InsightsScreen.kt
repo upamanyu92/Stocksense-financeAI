@@ -7,7 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -39,7 +39,7 @@ fun InsightsScreen(
                 title = { Text("$symbol – AI Insights") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -175,6 +175,7 @@ fun InsightsScreen(
                     },
                     enabled = !uiState.isChatLoading && chatInput.isNotBlank()
                 ) {
+                    @Suppress("DEPRECATION")
                     Icon(Icons.Default.Send, contentDescription = "Send")
                 }
             }
@@ -216,7 +217,7 @@ private fun AgenticMetricsCard(metrics: AgenticMetrics) {
             MetricRow("Quality Mode", metrics.qualityMode.name)
             MetricRow("Native Available", if (metrics.isNativeAvailable) "Yes" else "No")
             MetricRow("Model Downloaded", if (metrics.isModelDownloaded) "Yes" else "No")
-            MetricRow("Model File", metrics.modelFileName)
+            MetricRow("Model", metrics.displayModelName.ifBlank { "—" })
             MetricRow("Last Inference", if (metrics.lastInferenceTimeMs > 0) "${metrics.lastInferenceTimeMs}ms" else "N/A")
             MetricRow("Cache Hits", "${metrics.cacheHits}")
             MetricRow("Total Inferences", "${metrics.totalInferences}")

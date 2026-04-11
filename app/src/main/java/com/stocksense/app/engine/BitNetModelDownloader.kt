@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -43,11 +44,30 @@ class BitNetModelDownloader(private val context: Context) {
     // ── Model catalogue ──────────────────────────────────────────────
 
     companion object {
-        /** HuggingFace base URL for the Microsoft BitNet GGUF models. */
-        private const val HF_BASE =
-            "https://huggingface.co/microsoft/bitnet-b1.58-2B-4T-gguf/resolve/main"
+        private val foregroundDownloadLock = Any()
+        private var nextForegroundSessionId = 1L
+        private var activeForegroundDownload: ForegroundDownloadSession? = null
+
+        private data class ForegroundDownloadSession(
+            val sessionId: Long,
+            val modelDisplayName: String,
+            val targetFileName: String,
+            var call: Call? = null
+        )
+
+        /** HuggingFace base URLs for each quality-mode model. */
+        private const val HF_SMOLLM2_URL =
+            "https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf"
+        private const val HF_PHI2_URL =
+            "https://huggingface.co/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf"
+        private const val HF_MISTRAL_URL =
+            "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf"
 
         const val IMPORTED_MODEL_FILE_NAME = "imported_model.gguf"
+        val LEGACY_MODEL_FILE_NAMES = listOf(
+            "ggml-model-i2_s.gguf",
+            "SmolLM2-135M-Instruct-Q4_K_M.gguf"
+        )
 
         /**
          * Asset path for the optional nano model bundled inside the APK.
@@ -58,21 +78,27 @@ class BitNetModelDownloader(private val context: Context) {
         const val BUNDLED_MODEL_ASSET = "models/smollm2-135m-instruct-v0.2-q4_k_m.gguf"
         const val BUNDLED_MODEL_FILE  = "smollm2-135m-instruct-v0.2-q4_k_m.gguf"
 
-        /** Map of quality mode to (file-name, download-URL).
-         *  Note: All quality modes use the same model file since only one variant is available.
+        /**
+         * Map of quality mode to (file-name, download-URL).
+         *
+         * | Mode     | Model                              | ~Size  |
+         * |----------|------------------------------------|--------|
+         * | LITE     | SmolLM2 135M Q4_K_M (nano)         | ~80 MB |
+         * | BALANCED | Phi-2 2.7B Q4_K_M                 | ~1.6 GB|
+         * | PRO      | Mistral 7B Instruct v0.2 Q4_K_M   | ~4.1 GB|
          */
         val MODEL_CATALOGUE: Map<QualityMode, Pair<String, String>> = mapOf(
             QualityMode.LITE to Pair(
-                "ggml-model-i2_s.gguf",
-                "$HF_BASE/ggml-model-i2_s.gguf"
+                "smollm2-135m-instruct-v0.2-q4_k_m.gguf",
+                HF_SMOLLM2_URL
             ),
             QualityMode.BALANCED to Pair(
-                "ggml-model-i2_s.gguf",
-                "$HF_BASE/ggml-model-i2_s.gguf"
+                "phi-2.Q4_K_M.gguf",
+                HF_PHI2_URL
             ),
             QualityMode.PRO to Pair(
-                "ggml-model-i2_s.gguf",
-                "$HF_BASE/ggml-model-i2_s.gguf"
+                "mistral-7b-instruct-v0.2.Q4_K_M.gguf",
+                HF_MISTRAL_URL
             )
         )
     }
@@ -86,11 +112,105 @@ class BitNetModelDownloader(private val context: Context) {
         return file.exists() && file.length() > 0
     }
 
+    /** Check whether any usable GGUF model is already present on disk. */
+    fun hasAnyDiscoveredModel(): Boolean = discoverExistingModels().isNotEmpty()
+
+    /** True when an interactive foreground model download is in progress. */
+    fun hasActiveForegroundDownload(): Boolean = synchronized(foregroundDownloadLock) {
+        activeForegroundDownload != null
+    }
+
+    /** Start a new foreground download session, cancelling any previous one and cleaning stale temp files. */
+    fun prepareForegroundDownload(modelDisplayName: String, targetFileName: String): Long {
+        val sessionId = synchronized(foregroundDownloadLock) {
+            activeForegroundDownload?.call?.cancel()
+            val id = nextForegroundSessionId++
+            activeForegroundDownload = ForegroundDownloadSession(
+                sessionId = id,
+                modelDisplayName = modelDisplayName,
+                targetFileName = targetFileName
+            )
+            id
+        }
+        cleanupTemporaryModelFiles()
+        Log.i(TAG, "download_started session=$sessionId model=$modelDisplayName target=$targetFileName")
+        return sessionId
+    }
+
+    /** Cancel the current foreground download session if it matches [sessionId], then clean temp files. */
+    fun cancelForegroundDownload(sessionId: Long? = null, reason: String = "cancelled"): Boolean {
+        val cancelled = synchronized(foregroundDownloadLock) {
+            val active = activeForegroundDownload ?: return@synchronized false
+            if (sessionId != null && active.sessionId != sessionId) return@synchronized false
+            active.call?.cancel()
+            activeForegroundDownload = null
+            true
+        }
+        if (cancelled) {
+            cleanupTemporaryModelFiles()
+            Log.i(TAG, "download_cancelled_stale reason=$reason session=${sessionId ?: "active"}")
+        }
+        return cancelled
+    }
+
+    /** Delete stale partial model downloads from [modelsDir]. */
+    fun cleanupTemporaryModelFiles(exceptFileNames: Set<String> = emptySet()): Int {
+        var deleted = 0
+        modelsDir.listFiles()
+            ?.filter { it.isFile && it.name.endsWith(".tmp") && it.name !in exceptFileNames }
+            ?.forEach { tmp ->
+                if (tmp.delete()) {
+                    deleted++
+                    Log.i(TAG, "tmp_cleanup_deleted file=${tmp.name}")
+                }
+            }
+        if (deleted > 0) {
+            Log.i(TAG, "tmp_cleanup_complete deleted=$deleted")
+        }
+        return deleted
+    }
+
     /** Return the local [File] for the given mode (may not yet exist). */
     fun modelFileFor(mode: QualityMode): File {
         val (fileName, _) = MODEL_CATALOGUE[mode]
             ?: throw IllegalArgumentException("Unknown mode: $mode")
         return File(modelsDir, fileName)
+    }
+
+    /**
+     * Return all non-empty GGUF model files currently discoverable on disk.
+     *
+     * Priority order:
+     *  1. Exact catalogue model for the requested [mode], if supplied.
+     *  2. Imported model file.
+     *  3. Bundled SmolLM2 file.
+     *  4. Known legacy file names from older app versions.
+     *  5. Any other completed `.gguf` in [modelsDir].
+     */
+    fun discoverExistingModels(mode: QualityMode? = null): List<File> {
+        fun existing(file: File): File? = file.takeIf { it.exists() && it.length() > 0L && it.extension.equals("gguf", ignoreCase = true) }
+
+        val ordered = mutableListOf<File>()
+
+        if (mode != null) {
+            existing(modelFileFor(mode))?.let(ordered::add)
+        }
+
+        existing(File(modelsDir, IMPORTED_MODEL_FILE_NAME))?.let(ordered::add)
+        existing(File(modelsDir, BUNDLED_MODEL_FILE))?.let(ordered::add)
+
+        LEGACY_MODEL_FILE_NAMES
+            .map { File(modelsDir, it) }
+            .mapNotNull(::existing)
+            .forEach(ordered::add)
+
+        modelsDir.listFiles()
+            ?.asSequence()
+            ?.filter { it.isFile && it.length() > 0L && it.extension.equals("gguf", ignoreCase = true) }
+            ?.sortedBy { it.name.lowercase() }
+            ?.forEach(ordered::add)
+
+        return ordered.distinctBy { it.absolutePath }
     }
 
     /**
@@ -106,6 +226,16 @@ class BitNetModelDownloader(private val context: Context) {
         val (fileName, url) = MODEL_CATALOGUE[mode]
             ?: return@withContext false
 
+        return@withContext downloadToFile(fileName, url, onProgress)
+    }
+
+    /** Download an exact model file to the provided canonical [fileName]. */
+    suspend fun downloadToFile(
+        fileName: String,
+        url: String,
+        onProgress: ((Float) -> Unit)? = null,
+        foregroundSessionId: Long? = null
+    ): Boolean = withContext(Dispatchers.IO) {
         val target = File(modelsDir, fileName)
         if (target.exists() && target.length() > 0) {
             Log.i(TAG, "Model already available: ${target.absolutePath}")
@@ -118,7 +248,11 @@ class BitNetModelDownloader(private val context: Context) {
 
         try {
             val request = Request.Builder().url(url).build()
-            client.newCall(request).execute().use { response ->
+            val call = client.newCall(request)
+            if (foregroundSessionId != null && !attachForegroundCall(foregroundSessionId, call)) {
+                return@withContext false
+            }
+            call.execute().use { response ->
                 if (!response.isSuccessful) {
                     Log.e(TAG, "Download failed: HTTP ${response.code}")
                     return@withContext false
@@ -133,6 +267,10 @@ class BitNetModelDownloader(private val context: Context) {
                         val buffer = ByteArray(8192)
                         var bytesRead: Int
                         while (input.read(buffer).also { bytesRead = it } != -1) {
+                            if (foregroundSessionId != null && !isForegroundSessionActive(foregroundSessionId)) {
+                                tmpFile.delete()
+                                return@withContext false
+                            }
                             fos.write(buffer, 0, bytesRead)
                             totalRead += bytesRead
                             if (contentLength > 0) {
@@ -141,6 +279,11 @@ class BitNetModelDownloader(private val context: Context) {
                         }
                     }
                 }
+            }
+
+            if (foregroundSessionId != null && !isForegroundSessionActive(foregroundSessionId)) {
+                tmpFile.delete()
+                return@withContext false
             }
 
             // Atomic rename so partially-downloaded files don't get used.
@@ -155,14 +298,21 @@ class BitNetModelDownloader(private val context: Context) {
             return@withContext true
 
         } catch (e: IOException) {
-            Log.e(TAG, "Download error: ${e.message}")
+            if (foregroundSessionId != null && !isForegroundSessionActive(foregroundSessionId)) {
+                Log.i(TAG, "download_cancelled_stale session=$foregroundSessionId target=$fileName")
+            } else {
+                Log.e(TAG, "Download error: ${e.message}")
+            }
             tmpFile.delete()
             return@withContext false
+        } finally {
+            if (foregroundSessionId != null) finishForegroundDownload(foregroundSessionId)
         }
     }
 
     /** Delete all downloaded model files to free storage. */
     fun clearModels() {
+        cancelForegroundDownload(reason = "clear_models")
         modelsDir.listFiles()?.forEach { it.delete() }
         Log.i(TAG, "All model files deleted")
     }
@@ -213,10 +363,11 @@ class BitNetModelDownloader(private val context: Context) {
      */
     suspend fun downloadWithProgress(
         url: String,
+        targetFileName: String = url.substringAfterLast("/").ifBlank { "model.gguf" },
+        foregroundSessionId: Long? = null,
         onProgress: (progress: Float, bytesDownloaded: Long, totalBytes: Long) -> Unit
     ): Boolean = withContext(Dispatchers.IO) {
-        val fileName = url.substringAfterLast("/").ifBlank { "model.gguf" }
-        val target = File(modelsDir, fileName)
+        val target = File(modelsDir, targetFileName)
 
         if (target.exists() && target.length() > 0) {
             Log.i(TAG, "Model already cached: ${target.absolutePath}")
@@ -224,14 +375,18 @@ class BitNetModelDownloader(private val context: Context) {
             return@withContext true
         }
 
-        Log.i(TAG, "Downloading from $url → $fileName")
-        val tmpFile = File(modelsDir, "$fileName.tmp")
+        Log.i(TAG, "Downloading from $url → $targetFileName")
+        val tmpFile = File(modelsDir, "$targetFileName.tmp")
 
         try {
             val request = Request.Builder().url(url).build()
-            client.newCall(request).execute().use { response ->
+            val call = client.newCall(request)
+            if (foregroundSessionId != null && !attachForegroundCall(foregroundSessionId, call)) {
+                return@withContext false
+            }
+            call.execute().use { response ->
                 if (!response.isSuccessful) {
-                    Log.e(TAG, "HTTP ${response.code} for $url")
+                        Log.e(TAG, "HTTP ${response.code} for $url")
                     return@withContext false
                 }
                 val body = response.body ?: return@withContext false
@@ -243,6 +398,10 @@ class BitNetModelDownloader(private val context: Context) {
                         val buffer = ByteArray(8192)
                         var bytesRead: Int
                         while (input.read(buffer).also { bytesRead = it } != -1) {
+                            if (foregroundSessionId != null && !isForegroundSessionActive(foregroundSessionId)) {
+                                tmpFile.delete()
+                                return@withContext false
+                            }
                             fos.write(buffer, 0, bytesRead)
                             totalRead += bytesRead
                             val progress =
@@ -253,8 +412,13 @@ class BitNetModelDownloader(private val context: Context) {
                 }
             }
 
+            if (foregroundSessionId != null && !isForegroundSessionActive(foregroundSessionId)) {
+                tmpFile.delete()
+                return@withContext false
+            }
+
             if (!tmpFile.renameTo(target)) {
-                Log.e(TAG, "Rename failed for $fileName")
+                Log.e(TAG, "Rename failed for $targetFileName")
                 tmpFile.delete()
                 return@withContext false
             }
@@ -263,13 +427,42 @@ class BitNetModelDownloader(private val context: Context) {
             onProgress(1f, target.length(), target.length())
             return@withContext true
         } catch (e: IOException) {
-            Log.e(TAG, "downloadWithProgress I/O error: ${e.message}")
+            if (foregroundSessionId != null && !isForegroundSessionActive(foregroundSessionId)) {
+                Log.i(TAG, "download_cancelled_stale session=$foregroundSessionId target=$targetFileName")
+            } else {
+                Log.e(TAG, "downloadWithProgress I/O error: ${e.message}")
+            }
             tmpFile.delete()
             return@withContext false
         } catch (e: Exception) {
             Log.e(TAG, "downloadWithProgress unexpected error: ${e.message}")
             tmpFile.delete()
             return@withContext false
+        } finally {
+            if (foregroundSessionId != null) finishForegroundDownload(foregroundSessionId)
+        }
+    }
+
+    private fun attachForegroundCall(sessionId: Long, call: Call): Boolean = synchronized(foregroundDownloadLock) {
+        val active = activeForegroundDownload
+        if (active?.sessionId == sessionId) {
+            active.call = call
+            true
+        } else {
+            call.cancel()
+            false
+        }
+    }
+
+    private fun isForegroundSessionActive(sessionId: Long): Boolean = synchronized(foregroundDownloadLock) {
+        activeForegroundDownload?.sessionId == sessionId
+    }
+
+    private fun finishForegroundDownload(sessionId: Long) {
+        synchronized(foregroundDownloadLock) {
+            if (activeForegroundDownload?.sessionId == sessionId) {
+                activeForegroundDownload = null
+            }
         }
     }
 }

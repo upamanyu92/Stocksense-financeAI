@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -22,9 +21,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -32,7 +32,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.stocksense.app.R
@@ -49,7 +49,6 @@ fun RegisterScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
-    val uriHandler = LocalUriHandler.current
     var pinVisible by remember { mutableStateOf(false) }
 
     Box(
@@ -232,17 +231,19 @@ fun RegisterScreen(
             // Terms and Conditions
             val termsAnnotated = buildAnnotatedString {
                 append("I agree to the ")
-                pushStringAnnotation(tag = "TERMS", annotation = "terms")
-                withStyle(SpanStyle(color = ElectricBlue, textDecoration = TextDecoration.Underline)) {
-                    append("Terms and Conditions")
-                }
-                pop()
+                withLink(
+                    LinkAnnotation.Url(
+                        url = URL_TERMS,
+                        styles = TextLinkStyles(SpanStyle(color = ElectricBlue, textDecoration = TextDecoration.Underline))
+                    )
+                ) { append("Terms and Conditions") }
                 append(" and ")
-                pushStringAnnotation(tag = "PRIVACY", annotation = "privacy")
-                withStyle(SpanStyle(color = ElectricBlue, textDecoration = TextDecoration.Underline)) {
-                    append("Privacy Policy")
-                }
-                pop()
+                withLink(
+                    LinkAnnotation.Url(
+                        url = URL_PRIVACY,
+                        styles = TextLinkStyles(SpanStyle(color = ElectricBlue, textDecoration = TextDecoration.Underline))
+                    )
+                ) { append("Privacy Policy") }
             }
 
             Row(
@@ -258,19 +259,9 @@ fun RegisterScreen(
                         checkmarkColor = DeepBlack
                     )
                 )
-                ClickableText(
+                Text(
                     text = termsAnnotated,
-                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface),
-                    onClick = { offset ->
-                        termsAnnotated.getStringAnnotations(tag = "TERMS", start = offset, end = offset)
-                            .firstOrNull()?.let {
-                                uriHandler.openUri(URL_TERMS)
-                            }
-                        termsAnnotated.getStringAnnotations(tag = "PRIVACY", start = offset, end = offset)
-                            .firstOrNull()?.let {
-                                uriHandler.openUri(URL_PRIVACY)
-                            }
-                    }
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface)
                 )
             }
 

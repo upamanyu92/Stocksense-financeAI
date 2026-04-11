@@ -16,7 +16,7 @@ MODEL_FILE="smollm2-135m-instruct-v0.2-q4_k_m.gguf"
 DEST="app/src/main/assets/models/${MODEL_FILE}"
 URL="https://huggingface.co/HuggingFaceTB/smollm2-135M-instruct-v0.2-GGUF/resolve/main/${MODEL_FILE}"
 
-echo "SenseQuant — SmolLM2-135M bundler"
+echo "QuantSense — SmolLM2-135M bundler"
 echo "==================================="
 
 if [ -f "$DEST" ]; then
@@ -49,4 +49,3 @@ echo "  ./gradlew assembleDebug"
 echo ""
 echo "The model will be copied automatically on first app launch."
 echo "No network download needed on the device."
-

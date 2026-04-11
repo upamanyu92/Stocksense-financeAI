@@ -22,7 +22,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.stocksense.app.engine.LlmStatus
-import com.stocksense.app.engine.QualityMode
 import com.stocksense.app.ui.theme.*
 import com.stocksense.app.viewmodel.LlmSettingsViewModel
 
@@ -34,8 +33,11 @@ fun LlmSettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-    var selectedMode by remember { mutableStateOf(uiState.availableModels.firstOrNull()?.mode ?: QualityMode.LITE) }
     var showDropdown by remember { mutableStateOf(false) }
+    val safeSelectedIndex = uiState.selectedModelIndex.coerceIn(0, (uiState.availableModels.size - 1).coerceAtLeast(0))
+    val selectedModel = uiState.availableModels.getOrElse(safeSelectedIndex) {
+        uiState.availableModels.first()
+    }
 
     val deviceRamGb = getDeviceRamGb(context)
     val bestModel = uiState.availableModels
@@ -87,13 +89,16 @@ fun LlmSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        val statusColor = when (uiState.status) {
+                        val statusColor = when {
+                            uiState.isDownloading -> ElectricBlue
+                            else -> when (uiState.status) {
                             LlmStatus.READY -> NeonGreen
                             LlmStatus.LOADING -> LuxeGold
                             LlmStatus.LOAD_FAILED -> SoftRed
                             LlmStatus.MODEL_NOT_DOWNLOADED -> MutedGrey
                             LlmStatus.NATIVE_UNAVAILABLE -> MutedGrey
                             LlmStatus.TEMPLATE_FALLBACK -> ElectricBlue
+                            }
                         }
                         Box(
                             modifier = Modifier
@@ -103,13 +108,17 @@ fun LlmSettingsScreen(
                         Text("Model Status", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                     }
 
-                    val statusText = when (uiState.status) {
+                    val statusText = when {
+                        uiState.isDownloading && uiState.activeDownloadModelName.isNotBlank() ->
+                            "Downloading ${uiState.activeDownloadModelName}…"
+                        else -> when (uiState.status) {
                         LlmStatus.READY -> "Ready – LLM loaded and operational"
                         LlmStatus.LOADING -> "Loading model into memory…"
                         LlmStatus.LOAD_FAILED -> "Failed to load – try reloading or a different model"
                         LlmStatus.MODEL_NOT_DOWNLOADED -> "No model downloaded – download or import one below"
                         LlmStatus.NATIVE_UNAVAILABLE -> "This APK does not include the native llama runtime"
                         LlmStatus.TEMPLATE_FALLBACK -> "Using template-based responses (no LLM)"
+                        }
                     }
                     Text(statusText, color = MutedGrey, fontSize = 14.sp)
 
@@ -121,14 +130,35 @@ fun LlmSettingsScreen(
                         )
                     }
 
-                    if (uiState.currentModelName.isNotBlank()) {
-                        Text("Model: ${uiState.currentModelName}", color = ElectricBlue, fontSize = 13.sp)
+                    if (uiState.isDownloading && uiState.activeDownloadModelName.isNotBlank()) {
+                        Text("Downloading model: ${uiState.activeDownloadModelName}", color = ElectricBlue, fontSize = 13.sp)
                     }
 
+                    if (uiState.currentModelName.isNotBlank() &&
+                        (uiState.isModelDownloaded || uiState.status == LlmStatus.READY || uiState.status == LlmStatus.LOAD_FAILED || uiState.status == LlmStatus.TEMPLATE_FALLBACK)
+                    ) {
+                        Text(
+                            text = if (uiState.isDownloading) "Loaded model: ${uiState.currentModelName}" else "Model: ${uiState.currentModelName}",
+                            color = if (uiState.isDownloading) MutedGrey else ElectricBlue,
+                            fontSize = 13.sp
+                        )
+                    }
+
+                    val selectedModelLabel = uiState.availableModels
+                        .getOrNull(uiState.selectedModelIndex)
+                        ?.name
+                        .orEmpty()
                     Text(
-                        text = "Native: ${if (uiState.isNativeAvailable) "Available" else "Unavailable"} • " +
-                            "Downloaded: ${if (uiState.isModelDownloaded) "Yes" else "No"} • " +
-                            "Last check: ${if (uiState.lastInferenceTimeMs > 0) "${uiState.lastInferenceTimeMs} ms" else "—"}",
+                        text = buildString {
+                            append("Selected: ")
+                            append(selectedModelLabel.ifBlank { "—" })
+                            append(" • Native: ")
+                            append(if (uiState.isNativeAvailable) "Available" else "Unavailable")
+                            append(" • Downloaded: ")
+                            append(if (uiState.isModelDownloaded) "Yes" else "No")
+                            append(" • Last check: ")
+                            append(if (uiState.lastInferenceTimeMs > 0) "${uiState.lastInferenceTimeMs} ms" else "—")
+                        },
                         color = MutedGrey,
                         fontSize = 12.sp
                     )
@@ -255,8 +285,6 @@ fun LlmSettingsScreen(
                         expanded = showDropdown,
                         onExpandedChange = { showDropdown = it }
                     ) {
-                        val selectedModel = uiState.availableModels.find { it.mode == selectedMode }
-                            ?: uiState.availableModels.first()
 
                         OutlinedTextField(
                             value = selectedModel.name,
@@ -264,7 +292,7 @@ fun LlmSettingsScreen(
                             readOnly = true,
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showDropdown) },
                             modifier = Modifier
-                                .menuAnchor()
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                                 .fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -281,7 +309,7 @@ fun LlmSettingsScreen(
                             expanded = showDropdown,
                             onDismissRequest = { showDropdown = false }
                         ) {
-                            uiState.availableModels.forEach { model ->
+                            uiState.availableModels.forEachIndexed { index, model ->
                                 DropdownMenuItem(
                                     text = {
                                         Column {
@@ -294,7 +322,7 @@ fun LlmSettingsScreen(
                                         }
                                     },
                                     onClick = {
-                                        selectedMode = model.mode
+                                        viewModel.selectModel(index)
                                         showDropdown = false
                                     }
                                 )
@@ -305,6 +333,13 @@ fun LlmSettingsScreen(
                     // Download progress
                     if (uiState.isDownloading) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (uiState.activeDownloadModelName.isNotBlank()) {
+                                Text(
+                                    "Downloading ${uiState.activeDownloadModelName}",
+                                    color = ElectricBlue,
+                                    fontSize = 12.sp
+                                )
+                            }
                             LinearProgressIndicator(
                                 progress = { uiState.downloadProgress },
                                 modifier = Modifier.fillMaxWidth(),
@@ -320,7 +355,7 @@ fun LlmSettingsScreen(
                     }
 
                     Button(
-                        onClick = { viewModel.downloadModel(selectedMode) },
+                        onClick = { viewModel.downloadSelectedModel() },
                         enabled = uiState.isNativeAvailable && !uiState.isDownloading,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),

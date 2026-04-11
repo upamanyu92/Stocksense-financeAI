@@ -82,7 +82,7 @@ fun ChatScreen(
         ) {
             AgentStatusStrip(
                 status = uiState.llmStatus,
-                modelName = uiState.llmMetrics.modelFileName,
+                modelName = uiState.llmMetrics.displayModelName,
                 isChecking = uiState.isCheckingAgent,
                 lastInferenceTimeMs = uiState.llmMetrics.lastInferenceTimeMs,
                 onRefresh = { viewModel.refreshAgentStatus() }

@@ -7,8 +7,9 @@ import androidx.lifecycle.viewModelScope
 import com.stocksense.app.engine.BitNetModelDownloader
 import com.stocksense.app.engine.QualityMode
 import com.stocksense.app.preferences.UserPreferencesManager
-import java.io.File
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -23,23 +24,24 @@ fun buildSetupModels(deviceRamGb: Int): List<ModelOption> {
     val all = listOf(
         ModelOption(
             name = "SmolLM2 135M (Q4_K_M) · Nano",
-            description = "Bundleable with APK · no download needed · 135M params",
+            description = "Tiny, fast model · ~80 MB download · 135M params",
             sizeLabel = "~80 MB",
             mode = QualityMode.LITE,
-            downloadUrl = "https://huggingface.co/HuggingFaceTB/smollm2-135M-instruct-v0.2-GGUF/resolve/main/smollm2-135m-instruct-v0.2-q4_k_m.gguf",
+            fileName = "smollm2-135m-instruct-v0.2-q4_k_m.gguf",
+            downloadUrl = "https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf",
             recommendedRamGb = 1,
-            explanation = "SmolLM2-135M is the only model small enough (~80 MB) to ship inside the " +
-                "APK itself — zero network required at first launch. It handles basic finance Q&A, " +
-                "price lookups, and alert summaries with low latency. Quality is intentionally limited; " +
-                "treat it as a fast local test harness rather than a production model. " +
-                "To bundle it: download the GGUF and place it at " +
-                "app/src/main/assets/models/smollm2-135m-instruct-v0.2-q4_k_m.gguf before building."
+            explanation = "SmolLM2-135M is the smallest available model (~80 MB download). It handles " +
+                "basic finance Q&A, price lookups, and alert summaries with very low latency and " +
+                "minimal RAM usage. Quality is intentionally limited; treat it as a fast local " +
+                "assistant rather than a deep analytical model. Recommended for devices under 3 GB RAM " +
+                "or for users who want the fastest possible download and response times."
         ),
         ModelOption(
             name = "TinyLlama 1.1B (Q4_K_M)",
             description = "Ultra-light · fastest inference · 1.1B params",
             sizeLabel = "~0.8 GB",
             mode = QualityMode.LITE,
+            fileName = "tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
             downloadUrl = "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
             recommendedRamGb = 2,
             explanation = "TinyLlama 1.1B is purpose-built for constrained devices. With only 1.1 billion " +
@@ -53,6 +55,7 @@ fun buildSetupModels(deviceRamGb: Int): List<ModelOption> {
             description = "Compact powerhouse · best speed-to-quality ratio · 2.7B params",
             sizeLabel = "~1.6 GB",
             mode = QualityMode.LITE,
+            fileName = "phi-2.Q4_K_M.gguf",
             downloadUrl = "https://huggingface.co/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf",
             recommendedRamGb = 4,
             explanation = "Microsoft's Phi-2 punches well above its weight class. At 2.7B parameters with " +
@@ -66,6 +69,7 @@ fun buildSetupModels(deviceRamGb: Int): List<ModelOption> {
             description = "Rich contextual dialogue · comprehensive analysis · 7B params",
             sizeLabel = "~4.2 GB",
             mode = QualityMode.BALANCED,
+            fileName = "llama-2-7b-chat.Q4_K_M.gguf",
             downloadUrl = "https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/resolve/main/llama-2-7b-chat.Q4_K_M.gguf",
             recommendedRamGb = 6,
             explanation = "Meta's Llama-2 7B Chat excels at multi-turn conversations and contextual reasoning. " +
@@ -79,6 +83,7 @@ fun buildSetupModels(deviceRamGb: Int): List<ModelOption> {
             description = "State-of-the-art accuracy · best for power users · 7B params",
             sizeLabel = "~4.1 GB",
             mode = QualityMode.PRO,
+            fileName = "mistral-7b-instruct-v0.2.Q4_K_M.gguf",
             downloadUrl = "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf",
             recommendedRamGb = 6,
             explanation = "Mistral 7B Instruct v0.2 is one of the best open-source instruction-following LLMs " +
@@ -103,6 +108,7 @@ class InitialSetupViewModel(
     data class UiState(
         val availableModels: List<ModelOption> = emptyList(),
         val selectedModelIndex: Int = 0,
+        val activeDownloadModelName: String = "",
         val deviceRamGb: Int = 4,
         val isDownloading: Boolean = false,
         val downloadProgress: Float = 0f,
@@ -114,6 +120,8 @@ class InitialSetupViewModel(
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState
+    private var downloadJob: Job? = null
+    private var activeForegroundDownloadSessionId: Long? = null
 
     init {
         val ram = detectRamGb(appContext)
@@ -121,37 +129,67 @@ class InitialSetupViewModel(
         val recIdx = models.indexOfFirst { it.recommended }.coerceAtLeast(0)
         _uiState.update { it.copy(availableModels = models, selectedModelIndex = recIdx, deviceRamGb = ram) }
 
-        // Auto-complete setup if the SmolLM2 model was bundled inside the APK and already copied.
+        // Auto-complete setup if a model was previously downloaded (any valid .gguf present).
+        // This no longer relies on a bundled APK asset — setup is only skipped when
+        // the user already completed a runtime download on a prior launch.
         viewModelScope.launch {
-            val bundledFile = File(downloader.modelsDir, BitNetModelDownloader.BUNDLED_MODEL_FILE)
-            if (bundledFile.exists() && bundledFile.length() > 0) {
+            val hasAnyModel = downloader.hasAnyDiscoveredModel()
+            if (hasAnyModel) {
                 prefsManager.markInitialSetupComplete()
                 _uiState.update { it.copy(setupComplete = true) }
             }
         }
     }
 
-    fun selectModel(idx: Int) = _uiState.update { it.copy(selectedModelIndex = idx) }
+    fun selectModel(idx: Int) {
+        if (idx !in _uiState.value.availableModels.indices || idx == _uiState.value.selectedModelIndex) return
+        cancelActiveDownload(reason = "setup_model_switch")
+        downloader.cleanupTemporaryModelFiles()
+        _uiState.update {
+            it.copy(
+                selectedModelIndex = idx,
+                downloadProgress = 0f,
+                downloadSpeed = "—",
+                eta = "—",
+                downloadError = null
+            )
+        }
+    }
 
     fun startDownload() {
         val state = _uiState.value
-        if (state.isDownloading || state.availableModels.isEmpty()) return
+        if (state.availableModels.isEmpty()) return
         val model = state.availableModels[state.selectedModelIndex]
+        cancelActiveDownload(reason = "setup_restart_download")
+        val sessionId = downloader.prepareForegroundDownload(model.name, model.fileName)
+        activeForegroundDownloadSessionId = sessionId
 
         _uiState.update {
-            it.copy(isDownloading = true, downloadProgress = 0f,
-                downloadSpeed = "—", eta = "—", downloadError = null)
+            it.copy(
+                isDownloading = true,
+                activeDownloadModelName = model.name,
+                downloadProgress = 0f,
+                downloadSpeed = "—",
+                eta = "—",
+                downloadError = null
+            )
         }
 
-        viewModelScope.launch {
+        downloadJob = viewModelScope.launch {
             var lastBytes = 0L
             var lastTime = System.currentTimeMillis()
             var lastSpeedDisplay = "—"
             var lastEtaDisplay = "—"
 
             try {
-                val success = downloader.downloadWithProgress(model.downloadUrl) {
+                val success = downloader.downloadWithProgress(
+                    url = model.downloadUrl,
+                    targetFileName = model.fileName,
+                    foregroundSessionId = sessionId
+                ) {
                     progress: Float, bytesDownloaded: Long, totalBytes: Long ->
+
+                    if (activeForegroundDownloadSessionId != sessionId) return@downloadWithProgress
 
                     val now = System.currentTimeMillis()
                     val elapsedSec = (now - lastTime) / 1000.0
@@ -170,27 +208,50 @@ class InitialSetupViewModel(
                         lastBytes = bytesDownloaded
                         lastTime = now
                         _uiState.update {
-                            it.copy(downloadProgress = progress,
-                                downloadSpeed = lastSpeedDisplay, eta = lastEtaDisplay)
+                            it.copy(
+                                activeDownloadModelName = model.name,
+                                downloadProgress = progress,
+                                downloadSpeed = lastSpeedDisplay,
+                                eta = lastEtaDisplay
+                            )
                         }
                     }
                 }
 
+                if (activeForegroundDownloadSessionId != sessionId) return@launch
+
                 if (success) {
                     prefsManager.markInitialSetupComplete()
-                    _uiState.update { it.copy(isDownloading = false, downloadProgress = 1f, setupComplete = true) }
+                    _uiState.update {
+                        it.copy(
+                            isDownloading = false,
+                            activeDownloadModelName = "",
+                            downloadProgress = 1f,
+                            setupComplete = true
+                        )
+                    }
                 } else {
                     _uiState.update {
-                        it.copy(isDownloading = false,
-                            downloadError = "Download failed. Check your internet connection and try again.")
+                        it.copy(
+                            isDownloading = false,
+                            activeDownloadModelName = "",
+                            downloadError = "Download failed. Check your internet connection and try again."
+                        )
                     }
                 }
+            } catch (_: CancellationException) {
             } catch (e: Exception) {
+                if (activeForegroundDownloadSessionId != sessionId) return@launch
                 _uiState.update {
                     it.copy(
                         isDownloading = false,
+                        activeDownloadModelName = "",
                         downloadError = "Download error: ${e.message ?: "Unknown error. Please try again."}"
                     )
+                }
+            } finally {
+                if (activeForegroundDownloadSessionId == sessionId) {
+                    activeForegroundDownloadSessionId = null
                 }
             }
         }
@@ -216,5 +277,21 @@ class InitialSetupViewModel(
         seconds < 60 -> "${seconds}s"
         seconds < 3600 -> "${seconds / 60}m ${seconds % 60}s"
         else -> "${seconds / 3600}h ${(seconds % 3600) / 60}m"
+    }
+
+    private fun cancelActiveDownload(reason: String) {
+        downloadJob?.cancel()
+        downloadJob = null
+        activeForegroundDownloadSessionId?.let { downloader.cancelForegroundDownload(it, reason) }
+        activeForegroundDownloadSessionId = null
+        _uiState.update {
+            it.copy(
+                isDownloading = false,
+                activeDownloadModelName = "",
+                downloadProgress = 0f,
+                downloadSpeed = "—",
+                eta = "—"
+            )
+        }
     }
 }

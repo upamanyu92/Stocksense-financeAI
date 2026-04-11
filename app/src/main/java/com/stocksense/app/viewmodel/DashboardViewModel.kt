@@ -4,6 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stocksense.app.data.model.*
 import com.stocksense.app.data.repository.StockRepository
+import com.stocksense.app.data.database.dao.WatchlistDao
+import com.stocksense.app.data.database.entities.WatchlistItem
+import com.stocksense.app.data.database.dao.PortfolioHoldingDao
+import com.stocksense.app.data.database.entities.PortfolioHolding
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -26,7 +30,9 @@ data class DashboardUiState(
 )
 
 class DashboardViewModel(
-    private val stockRepository: StockRepository
+    private val stockRepository: StockRepository,
+    private val watchlistDao: WatchlistDao,
+    private val portfolioHoldingDao: PortfolioHoldingDao
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -36,7 +42,11 @@ class DashboardViewModel(
 
     init {
         observeStocks()
+        observePortfolio()
         seedStaticContent()
+        // Trigger an immediate network refresh so live data appears on launch
+        // rather than waiting for the 15-minute DataSyncWorker.
+        refresh()
     }
 
     fun updateSearchQuery(query: String) {
@@ -56,28 +66,75 @@ class DashboardViewModel(
 
     private fun observeStocks() {
         viewModelScope.launch {
-            stockRepository.observeAllStocks()
+            watchlistDao.getAll()
                 .onStart { _uiState.update { it.copy(isLoading = true) } }
                 .catch { e -> _uiState.update { it.copy(error = e.message, isLoading = false) } }
-                .collect { stocks ->
-                    val snapshot = buildPortfolioSnapshot(stocks)
-                    val predictions = buildPredictions(stocks)
-                    _uiState.update {
-                        it.copy(
-                            stocks = stocks,
-                            filteredStocks = if (it.searchQuery.isBlank()) stocks else it.filteredStocks,
-                            portfolio = snapshot,
-                            predictions = predictions,
-                            isLoading = false,
-                            error = null
-                        )
-                    }
+                .collect { items ->
+                    refreshStockData(items)
                 }
         }
     }
 
+    private fun observePortfolio() {
+        viewModelScope.launch {
+            portfolioHoldingDao.getAll()
+                .onStart { _uiState.update { it.copy(isLoading = true) } }
+                .catch { e -> _uiState.update { it.copy(error = e.message, isLoading = false) } }
+                .collect { holdings ->
+                    refreshPortfolioData(holdings)
+                }
+        }
+    }
+
+    private fun refreshStockData(items: List<WatchlistItem>) {
+        viewModelScope.launch {
+            val symbols = items.map { it.symbol }
+            val stocks = if (symbols.isEmpty()) emptyList() else stockRepository.getStocks(symbols)
+            val snapshot = buildPortfolioSnapshot(stocks)
+            val predictions = buildPredictions(stocks)
+            _uiState.update {
+                it.copy(
+                    stocks = stocks,
+                    filteredStocks = if (it.searchQuery.isBlank()) stocks else it.filteredStocks,
+                    portfolio = snapshot,
+                    predictions = predictions,
+                    isLoading = false,
+                    error = null
+                )
+            }
+        }
+    }
+
+    private fun refreshPortfolioData(holdings: List<PortfolioHolding>) {
+        val totalValue = holdings.sumOf { it.currentValue }
+        val dailyPnl = holdings.sumOf { it.pnl }
+        val dailyPercent = if (totalValue == 0.0) 0.0 else (dailyPnl / totalValue) * 100
+        val level = if (holdings.isEmpty()) "No Portfolio" else when {
+            dailyPercent > 5 -> "AI Trader"
+            dailyPercent > 0 -> "Smart Investor"
+            else -> "Market Learner"
+        }
+        val snapshot = PortfolioSnapshot(
+            totalValue = totalValue,
+            dailyPnl = dailyPnl,
+            dailyPercent = dailyPercent,
+            level = level,
+            streakDays = 3
+        )
+        _uiState.update { it.copy(portfolio = snapshot) }
+    }
+
     fun refresh() {
-        observeStocks()
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            try {
+                stockRepository.refreshTrackedStocks()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = "Refresh failed: ${e.message}") }
+            } finally {
+                _uiState.update { it.copy(isLoading = false) }
+            }
+        }
     }
 
     private fun seedStaticContent() {

@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -94,7 +96,7 @@ fun SearchDropdown(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(
-                                Icons.Default.ArrowForward,
+                                Icons.AutoMirrored.Filled.ArrowForward,
                                 contentDescription = null,
                                 tint = ElectricBlue,
                                 modifier = Modifier.size(14.dp)
@@ -120,7 +122,7 @@ private fun SearchDropdownItem(result: SearchResult, onClick: () -> Unit) {
         // Type icon
         val icon = when (result.type) {
             SearchResultType.COMPANY -> Icons.Default.Business
-            SearchResultType.STOCK_SYMBOL -> Icons.Default.TrendingUp
+            SearchResultType.STOCK_SYMBOL -> Icons.AutoMirrored.Filled.TrendingUp
             SearchResultType.ETF -> Icons.Default.AccountBalance
             SearchResultType.INDEX -> Icons.Default.BarChart
             SearchResultType.OTHER -> Icons.Default.Category

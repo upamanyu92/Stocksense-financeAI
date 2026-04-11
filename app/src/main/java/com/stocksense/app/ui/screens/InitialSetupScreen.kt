@@ -250,7 +250,7 @@ private fun ModelSelectionStep(
                 readOnly = true,
                 label = { Text("Select AI Model") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = showDropdown) },
-                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = Color(0xFF0A1628),
@@ -385,6 +385,7 @@ private fun DownloadProgressStep(
     viewModel: InitialSetupViewModel
 ) {
     val selected = uiState.availableModels.getOrNull(uiState.selectedModelIndex)
+    val activeModelName = uiState.activeDownloadModelName.ifBlank { selected?.name.orEmpty() }
 
     val warningTransition = rememberInfiniteTransition(label = "warning")
     val warningAlpha by warningTransition.animateFloat(
@@ -421,8 +422,8 @@ private fun DownloadProgressStep(
                     "Downloading AI Brain", fontWeight = FontWeight.ExtraBold,
                     fontSize = 24.sp, color = Color.White, textAlign = TextAlign.Center
                 )
-                if (selected != null) {
-                    Text(selected.name, fontSize = 14.sp, color = ElectricBlue, textAlign = TextAlign.Center)
+                if (activeModelName.isNotBlank()) {
+                    Text(activeModelName, fontSize = 14.sp, color = ElectricBlue, textAlign = TextAlign.Center)
                 }
             }
         }

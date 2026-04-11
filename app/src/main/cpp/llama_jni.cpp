@@ -109,6 +109,13 @@ Java_com_stocksense_app_engine_LlamaCpp_runInference(
         return env->NewStringUTF("[error: null context]");
     }
 
+    // Clear model memory before each new inference so previous calls don't
+    // corrupt positions and cause context-overflow on repeated use.
+    // llama.cpp replaced llama_kv_cache_clear() with the generic memory API.
+    if (auto *memory = llama_get_memory(ctx)) {
+        llama_memory_clear(memory, true);
+    }
+
     const llama_model *model = llama_get_model(ctx);
     const llama_vocab *vocab = llama_model_get_vocab(model);
     std::string prompt = jstring_to_string(env, jprompt);
@@ -150,12 +157,19 @@ Java_com_stocksense_app_engine_LlamaCpp_runInference(
         return env->NewStringUTF("[error: decode failed]");
     }
 
-    /* Greedy sampling loop. */
+    /* Greedy sampling loop.
+     * After the prompt decode only the last-position logits are enabled.
+     * Use llama_get_logits_ith(ctx, -1) which always returns the logits for
+     * the LAST enabled row — works for both the initial prompt-end token and
+     * each single-token generation step.                                     */
     std::string result;
     int n_decoded = 0;
+    int cur_pos = n_prompt;  // track absolute position in sequence
     while (n_decoded < max_tokens) {
-        // Sample next token
-        float *logits = llama_get_logits(ctx);
+        // -1 index = last enabled logit row (safe after any decode that enables exactly one row).
+        float *logits = llama_get_logits_ith(ctx, -1);
+        if (!logits) break;
+
         int vocab_size = llama_vocab_n_tokens(vocab);
         int max_id = 0;
         float max_logit = logits[0];
@@ -170,18 +184,20 @@ Java_com_stocksense_app_engine_LlamaCpp_runInference(
 
         // Convert token to text
         char buf[256];
-        int len = llama_token_to_piece(model, new_token, buf, sizeof(buf));
+        int len = llama_token_to_piece(vocab, new_token, buf, sizeof(buf),
+                                       /* lstrip */ 0, /* special */ false);
         if (len > 0) {
             result.append(buf, len);
         }
 
         // Prepare next batch with the generated token
         batch.token[0] = new_token;
-        batch.pos[0] = n_prompt + n_decoded;
+        batch.pos[0] = cur_pos;
         batch.n_seq_id[0] = 1;
         batch.seq_id[0][0] = 0;
         batch.logits[0] = true;
         batch.n_tokens = 1;
+        cur_pos++;
 
         if (llama_decode(ctx, batch) != 0) break;
         n_decoded++;

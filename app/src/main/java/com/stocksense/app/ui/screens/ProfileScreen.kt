@@ -5,7 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
@@ -38,7 +38,7 @@ fun ProfileScreen(
                 title = { Text("Profile & Preferences") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -282,7 +282,7 @@ fun ProfileScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                "Model file: ${uiState.llmMetrics.modelFileName.ifBlank { "None" }}",
+                                "Model: ${uiState.llmMetrics.displayModelName.ifBlank { "None" }}",
                                 style = MaterialTheme.typography.bodySmall
                             )
                             Text(

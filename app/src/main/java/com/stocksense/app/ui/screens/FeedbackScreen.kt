@@ -229,6 +229,7 @@ fun FeedbackScreen(
                 enabled = uiState.feedbackText.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
             ) {
+                @Suppress("DEPRECATION")
                 Icon(Icons.Default.Send, contentDescription = null)
                 Spacer(modifier = Modifier.size(8.dp))
                 Text("Send feedback")

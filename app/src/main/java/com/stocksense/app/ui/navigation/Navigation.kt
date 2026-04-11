@@ -20,7 +20,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.stocksense.app.ui.screens.*
+import com.stocksense.app.ui.theme.*
 import com.stocksense.app.viewmodel.*
+import com.stocksense.app.viewmodel.CredenceAIViewModel
 
 @Composable
 fun StockSenseNavGraph(
@@ -35,7 +37,8 @@ fun StockSenseNavGraph(
     chatViewModel: ChatViewModel,
     authViewModel: AuthViewModel,
     searchViewModel: SearchViewModel,
-    llmSettingsViewModel: LlmSettingsViewModel
+    llmSettingsViewModel: LlmSettingsViewModel,
+    credenceAIViewModel: CredenceAIViewModel
 ) {
     val navController = rememberNavController()
     val authState by authViewModel.uiState.collectAsState()
@@ -60,7 +63,10 @@ fun StockSenseNavGraph(
 
             // Hide bottom bar on auth screens
             if (currentRoute != null && currentRoute !in authRoutes) {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = Graphite,
+                    contentColor = Color.White
+                ) {
                     val currentDestination = navBackStackEntry?.destination
 
                     bottomNavItems.forEach { screen ->
@@ -132,11 +138,11 @@ fun StockSenseNavGraph(
                     onStockClick = { symbol ->
                         navController.navigate(Screen.Prediction.createRoute(symbol))
                     },
-                    onProfileClick = {
-                        navController.navigate(Screen.Profile.route)
-                    },
                     onViewAllSearchResults = { query ->
                         navController.navigate(Screen.SearchResults.createRoute(query))
+                    },
+                    onNavigateToCredence = {
+                        navController.navigate(Screen.CredenceAI.route)
                     }
                 )
             }
@@ -154,6 +160,9 @@ fun StockSenseNavGraph(
                     viewModel = portfolioViewModel,
                     onStockClick = { symbol ->
                         navController.navigate(Screen.Prediction.createRoute(symbol))
+                    },
+                    onNavigateToCredence = {
+                        navController.navigate(Screen.CredenceAI.route)
                     }
                 )
             }
@@ -214,6 +223,12 @@ fun StockSenseNavGraph(
                 FeedbackScreen(
                     viewModel = feedbackViewModel,
                     onBack = { navController.popBackStack() }
+                )
+            }
+            composable(Screen.CredenceAI.route) {
+                CredenceAIScreen(
+                    viewModel = credenceAIViewModel,
+                    onBack    = { navController.popBackStack() }
                 )
             }
             composable(Screen.SearchResults.route) { backStackEntry ->

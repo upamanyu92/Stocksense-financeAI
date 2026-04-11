@@ -85,7 +85,9 @@ class ChatViewModel(
                     userMessage = text,
                     symbol = symbol ?: "GENERAL",
                     recentPrices = recentPrices
-                )
+                ).ifBlank {
+                    fallbackChatResponse(text, symbol ?: "GENERAL")
+                }
 
                 val updatedMetrics = llmEngine.getMetrics()
 
@@ -156,6 +158,20 @@ class ChatViewModel(
             "ITC", "AXISBANK", "BHARTIARTL", "MARUTI", "ADANIENT"
         )
         return knownPatterns.firstOrNull { upper.contains(it) }
+    }
+
+    private fun fallbackChatResponse(userMessage: String, symbol: String): String {
+        val lower = userMessage.lowercase()
+        return when {
+            lower.contains("buy") || lower.contains("sell") ->
+                "Based on available data for $symbol, monitor trend strength and volatility before taking a buy or sell decision. Use position sizing and risk limits that fit your strategy."
+            lower.contains("price") || lower.contains("target") || lower.contains("prediction") ->
+                "For $symbol, check the Prediction tab for the latest model forecast. I can also help compare momentum, recent price action, and confidence levels for the symbol."
+            lower.contains("risk") || lower.contains("safe") ->
+                "$symbol risk depends on volatility, sector conditions, and market regime. Diversification and stop-loss discipline are important when exposure is high."
+            else ->
+                "Regarding $symbol, I can help with predictions, price action, risk, and market context. If you ask about a specific stock, I’ll tailor the response using the available local data."
+        }
     }
 
 }
