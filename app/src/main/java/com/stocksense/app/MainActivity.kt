@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
         val dashboardViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
-                DashboardViewModel(app.stockRepository) as T
+                DashboardViewModel(app.stockRepository, app.watchlistDao, app.portfolioHoldingDao) as T
         })[DashboardViewModel::class.java]
 
         val predictionViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {

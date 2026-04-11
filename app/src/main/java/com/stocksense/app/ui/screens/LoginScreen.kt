@@ -69,7 +69,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "SenseQuant",
+                text = "QuantSense",
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = ElectricBlue

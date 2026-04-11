@@ -359,7 +359,7 @@ private fun AnalysisTab(
                 Brush.linearGradient(listOf(GlassSurface, ElectricBlue.copy(alpha = 0.2f))))
                 .padding(16.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("SenseQuant Agent Analysis", fontWeight = FontWeight.Bold,
+                    Text("QuantSense Agent Analysis", fontWeight = FontWeight.Bold,
                         fontSize = 16.sp, color = ElectricBlue)
                     Text("AI agent evaluates your portfolio against current market sentiment " +
                         "and provides actionable recommendations.",

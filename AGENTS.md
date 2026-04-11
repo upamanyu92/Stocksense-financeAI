@@ -56,9 +56,9 @@
 - `FeatureEngineering` (pure-Kotlin object): computes SMA/EMA/ATR/ADX/RSI/Bollinger/MACD, data quality score, and market regime detection (`bull`/`bear`/`sideways`/`volatile`) used by `DataEnrichmentAgent`.
 
 ## Branding
-- App name: **SenseQuant** (tagline: "Quantified Intelligence · Precision Wealth").
+- App name: **QuantSense** (tagline: "Quantified Intelligence · Precision Wealth").
 - Kotlin package stays `com.stocksense.app` — do NOT rename package dirs.
-- UI strings use "SenseQuant"; class/function names retain `StockSense*` prefix for stability.
+- UI strings use "QuantSense"; class/function names retain `StockSense*` prefix for stability.
 - App icon: adaptive icon using `ic_app_logo.png` (= `stock_sense_logo.png`) with 3D layer-list foreground.
 - Boot screen: `IMG_0234.PNG` → `IMG_0233.PNG` futuristic morph transition + LLM particle background.
 

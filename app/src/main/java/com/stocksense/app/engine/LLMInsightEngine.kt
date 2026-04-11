@@ -371,7 +371,7 @@ class LLMInsightEngine(private val context: Context) {
      */
     suspend fun analyzePortfolio(portfolioSummary: String): String = withContext(Dispatchers.IO) {
         val prompt = """
-You are SenseQuant, an expert financial advisor AI. Analyse the following portfolio and provide:
+You are QuantSense, an expert financial advisor AI. Analyse the following portfolio and provide:
 1. TOP 3 recommended exits (sell reasons)
 2. TOP 3 holds (why to keep)
 3. TOP 2 rebalancing suggestions
@@ -390,7 +390,7 @@ ANALYSIS:""".trimIndent()
 
     private fun templatePortfolioAnalysis(): String {
         return """
-Portfolio Analysis by SenseQuant AI (Template Mode – install LLM model for deeper analysis):
+Portfolio Analysis by QuantSense AI (Template Mode – install LLM model for deeper analysis):
 
 **Recommended Exits:**
 • Review holdings with unrealised P&L below -20% — evaluate if thesis has changed.
@@ -408,7 +408,7 @@ Portfolio Analysis by SenseQuant AI (Template Mode – install LLM model for dee
 
 **Risk Rating: Medium**
 Mixed equity + commodity allocation. Several sectoral bets increase concentration risk.
-Install the SenseQuant AI model for personalised, data-driven recommendations.
+Install the QuantSense AI model for personalised, data-driven recommendations.
 """.trimIndent()
     }
 

@@ -361,7 +361,7 @@ Quantitative Analysis:""".trimIndent()
         return "Altman Z-Score places the company in the $zoneText. " +
                "Leverage is $deText. " +
                "EBIT trend indicates $forecast going forward. " +
-               "Install the SenseQuant LLM model for deeper quantitative commentary."
+               "Install the QuantSense LLM model for deeper quantitative commentary."
     }
 }
 
@@ -821,4 +821,6 @@ internal object EvaluationFramework {
         )
     }
 }
+
+
 

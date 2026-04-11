@@ -11,7 +11,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 
 class YahooFinanceProvider(
     private val quoteBaseUrl: String = "https://query1.finance.yahoo.com",
-    private val userAgent: String = "Mozilla/5.0 (Android) SenseQuant/1.0"
+    private val userAgent: String = "Mozilla/5.0 (Android) QuantSense/1.0"
 ) : BaseMarketDataProvider() {
 
     override val providerId: String = "yahoo"

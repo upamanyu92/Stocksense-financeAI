@@ -1,4 +1,4 @@
-# SenseQuant — FinanceAI Android
+# QuantSense — FinanceAI Android
 
 > **Quantified Intelligence · Precision Wealth**
 

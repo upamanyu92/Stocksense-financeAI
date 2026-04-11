@@ -62,7 +62,7 @@ fun DashboardScreen(
                             contentDescription = "SenseQuant Logo",
                             modifier = Modifier.size(28.dp)
                         )
-                        Text("SenseQuant", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+                        Text("QuantSense", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
                     }
                 },
                 actions = {
@@ -159,7 +159,7 @@ private fun HeaderBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("SenseQuant Command Center", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Text("QuantSense Command Center", fontWeight = FontWeight.Bold, fontSize = 20.sp)
             }
             IconButton(onClick = onProfileClick) {
                 Icon(
@@ -214,16 +214,24 @@ private fun HeroPortfolioCard(snapshot: PortfolioSnapshot) {
                 )
                 .padding(20.dp)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Portfolio", color = MutedGrey, fontSize = 13.sp)
-                Text(
-                    text = "₹${"%,.0f".format(snapshot.totalValue)}",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.ExtraBold
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    PnlPill(value = snapshot.dailyPnl, percent = snapshot.dailyPercent)
-                    LevelPill(level = snapshot.level, streak = snapshot.streakDays)
+            if (snapshot.level == "No Portfolio") {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Portfolio", color = MutedGrey, fontSize = 13.sp)
+                    Text("No portfolio data added yet", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Add holdings in the Portfolio tab to see your performance here.", color = MutedGrey, fontSize = 13.sp)
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Portfolio", color = MutedGrey, fontSize = 13.sp)
+                    Text(
+                        text = "₹${"%,.0f".format(snapshot.totalValue)}",
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        PnlPill(value = snapshot.dailyPnl, percent = snapshot.dailyPercent)
+                        LevelPill(level = snapshot.level, streak = snapshot.streakDays)
+                    }
                 }
             }
         }
