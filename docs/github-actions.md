@@ -70,7 +70,7 @@ and per-ABI naming behavior is preserved.
 
 Artifacts include debug APKs, test reports, release APKs, and the gateway runtime
 archive plus SHA-256 checksum. Main/tag pushes publish the existing GHCR download
-image containing release APKs and the clean runtime bundle. Version tags also
+image containing release APKs and the clean runtime bundle. Before pushing, an HTTP smoke check verifies APK downloads, the runtime checksum, and exclusion of private configuration paths. Version tags also
 attach both to GitHub Releases. The download image serves files; it does not host
 the inference gateway or expose repository secrets.
 
