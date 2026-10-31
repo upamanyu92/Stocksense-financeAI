@@ -1,5 +1,18 @@
 # AGENTS.md
 
+## Current Nemotron API migration (supersedes legacy LLM instructions below)
+- `LLMInsightEngine` now calls an HTTPS backend gateway. No on-device LLM is loaded.
+- `gateway/server.py` routes NVIDIA Nemotron 3 Super to Hugging Face hosted Nemotron fallback, persists quota cooldowns, and owns all provider secrets. See `gateway/README.md`.
+- Provider keys belong only in backend environment variables or ignored `gateway/.env`; never in Android BuildConfig or tracked files.
+- Private local debug: `python gateway/local.py`, then `adb reverse tcp:8080 tcp:8080` and `./gradlew installDebug` on the same computer. Debug-only network policy permits loopback/emulator HTTP; release stays HTTPS-only.
+- Android connection: `nemotron.gatewayUrl` / private-test `nemotron.gatewayToken` in ignored local.properties. Public release needs server-validated user auth.
+- First-run model download is skipped; existing BitNet download work is cancelled. Legacy downloader/setup classes are retained but not used in the active UI flow. Native LLM build defaults off.
+- CI uses `android-deploy.yml` + reusable `android.yml`. Provider credentials are step-scoped GitHub secrets in trusted main/tag jobs; artifacts are built from allowlisted runtime code/config. See `docs/github-actions.md`.
+- Release APKs contain no shared token. Runtime `GatewaySettings` encrypts on-device connection credentials with Android Keystore in `noBackupFilesDir`; private debug source builds retain local token defaults.
+- LLM settings now shows API status, editable connection settings, and a connection check. Old status enum/quality-mode names remain for call-site compatibility.
+- Tests: `(cd gateway && python -m unittest -v)` and `./gradlew :app:testDebugUnitTest`.
+
+
 ## Big picture
 - **SenseQuant** (formerly StockSense) is a single Android app module (Kotlin + Compose) with **manual DI** in `StockSenseApp.kt`.
 - Runtime flow: UI (`ui/screens/*`) → ViewModels (`viewmodel/*`) → data (`data/repository`, `engine`) → Room (`data/database`) + WorkManager (`workers/*`).

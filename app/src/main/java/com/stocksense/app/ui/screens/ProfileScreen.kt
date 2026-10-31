@@ -261,11 +261,11 @@ fun ProfileScreen(
 
                     val (statusText, statusColor) = when (uiState.llmStatus) {
                         LlmStatus.READY -> "Active and ready" to Color(0xFF2E7D32)
-                        LlmStatus.LOADING -> "Loading model into memory" to Color(0xFFF9A825)
-                        LlmStatus.MODEL_NOT_DOWNLOADED -> "Template mode until a model is downloaded" to Color(0xFFFF9800)
-                        LlmStatus.NATIVE_UNAVAILABLE -> "Template mode only — this build has no native llama runtime" to Color(0xFFFF9800)
-                        LlmStatus.LOAD_FAILED -> "Model failed to load on this device" to MaterialTheme.colorScheme.error
-                        LlmStatus.TEMPLATE_FALLBACK -> "Template mode only — local agent inactive" to Color(0xFF2196F3)
+                        LlmStatus.LOADING -> "Contacting AI service" to Color(0xFFF9A825)
+                        LlmStatus.MODEL_NOT_DOWNLOADED -> "AI service has not responded yet" to Color(0xFFFF9800)
+                        LlmStatus.NATIVE_UNAVAILABLE -> "AI service unavailable" to Color(0xFFFF9800)
+                        LlmStatus.LOAD_FAILED -> "AI service request failed" to MaterialTheme.colorScheme.error
+                        LlmStatus.TEMPLATE_FALLBACK -> "General template guidance — AI service inactive" to Color(0xFF2196F3)
                     }
 
                     Surface(
@@ -286,7 +286,7 @@ fun ProfileScreen(
                                 style = MaterialTheme.typography.bodySmall
                             )
                             Text(
-                                "Downloaded: ${if (uiState.llmMetrics.isModelDownloaded) "Yes" else "No"} · Native runtime: ${if (uiState.llmMetrics.isNativeAvailable) "Available" else "Unavailable"}",
+                                "NVIDIA primary · Hugging Face fallback · Internet required",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )

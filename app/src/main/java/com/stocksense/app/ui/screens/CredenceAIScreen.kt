@@ -948,11 +948,11 @@ private fun riskLabelColor(name: String): Color = when (name) {
 @Composable
 private fun LlmStatusBadge(status: LlmStatus, mode: QualityMode) {
     val (label, color) = when (status) {
-        LlmStatus.READY              -> "LLM Ready · ${mode.name}" to NeonGreen
-        LlmStatus.LOADING            -> "LLM Loading…" to LuxeGold
+        LlmStatus.READY              -> "Nemotron API Ready" to NeonGreen
+        LlmStatus.LOADING            -> "Contacting AI service…" to LuxeGold
         LlmStatus.NATIVE_UNAVAILABLE -> "Template Mode · No LLM" to MutedGrey
-        LlmStatus.MODEL_NOT_DOWNLOADED -> "Model Not Downloaded" to LuxeGold
-        LlmStatus.LOAD_FAILED        -> "LLM Load Failed · Template" to SoftRed
+        LlmStatus.MODEL_NOT_DOWNLOADED -> "AI Service Unavailable" to LuxeGold
+        LlmStatus.LOAD_FAILED        -> "AI Request Failed · Template" to SoftRed
         LlmStatus.TEMPLATE_FALLBACK  -> "Template Fallback" to LuxeGold
     }
     Row(

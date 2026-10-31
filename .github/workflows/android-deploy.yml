@@ -1,258 +1,204 @@
-name: Android CI and Docker Deploy
+name: Android builds and runtime artifacts
 
 on:
   push:
-    branches: ["main", "copilot/**"]
-    tags: ["v*"]
+    branches: [main, 'copilot/**']
+    tags: ['v*']
   pull_request:
-    branches: ["main"]
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      verify_providers:
+        description: 'Perform small, billable NVIDIA and Hugging Face inference checks (main only)'
+        type: boolean
+        default: false
 
-env:
-  JAVA_VERSION: "17"
-  CI: true
-
-# Cancel any in-progress run for the same ref so duplicate triggers
-# (e.g. push + pull_request on the same commit) don't waste CI minutes.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 jobs:
   test:
-    name: Build & Test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    name: Android and gateway checks
+    uses: ./.github/workflows/android.yml
 
-      - name: Set up JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install SDK components
-        run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-36" "platform-tools" "build-tools;35.0.0"
-
-      - name: Make Gradle executable
-        run: chmod +x gradlew
-
-      - name: Run unit and lint tests
-        run: ./gradlew --no-daemon testDebug lintDebug
-
-  assemble:
-    name: Assemble Split APKs
+  gateway-runtime:
+    name: Prepare gateway runtime
     runs-on: ubuntu-latest
     needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate trusted runtime credential injection
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          GATEWAY_ACCESS_TOKEN: ${{ secrets.GATEWAY_ACCESS_TOKEN }}
+        run: python gateway/check_configuration.py
+      - name: Verify live providers (explicit opt-in)
+        if: github.event_name == 'workflow_dispatch' && inputs.verify_providers && github.ref == 'refs/heads/main'
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          GATEWAY_ACCESS_TOKEN: ${{ secrets.GATEWAY_ACCESS_TOKEN }}
+          NVIDIA_MODEL: ${{ vars.NVIDIA_MODEL }}
+          HF_MODEL: ${{ vars.HF_MODEL }}
+        run: python gateway/verify_providers.py
+      - name: Package public runtime code and non-secret configuration
+        env:
+          NEMOTRON_GATEWAY_URL: ${{ vars.NEMOTRON_GATEWAY_URL }}
+          NVIDIA_MODEL: ${{ vars.NVIDIA_MODEL }}
+          HF_MODEL: ${{ vars.HF_MODEL }}
+        run: |
+          python scripts/build_runtime_bundle.py
+          cd dist/gateway-runtime
+          sha256sum quantsense-gateway-runtime.tar.gz > quantsense-gateway-runtime.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quantsense-gateway-runtime-${{ github.sha }}
+          path: |
+            dist/gateway-runtime/*.tar.gz
+            dist/gateway-runtime/*.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  assemble:
+    name: Assemble release APKs
+    runs-on: ubuntu-latest
+    needs: [test, gateway-runtime]
     outputs:
       release_version_name: ${{ steps.version.outputs.release_version_name }}
       release_version_code: ${{ steps.version.outputs.release_version_code }}
       release_artifact_name: ${{ steps.version.outputs.release_artifact_name }}
       docker_version_tag: ${{ steps.version.outputs.docker_version_tag }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up JDK
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: quantsense-gateway-runtime-${{ github.sha }}
+          path: dist/gateway-runtime
+      - name: Configure APK from validated runtime artifact
+        run: python scripts/configure_ci_build.py
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - name: Install SDK components
         run: |
           yes | sdkmanager --licenses || true
           sdkmanager "platforms;android-36" "platform-tools" "build-tools;35.0.0"
-
-      - name: Make Gradle executable
-        run: chmod +x gradlew
-
-      - name: Prepare release keystore (optional)
+      - name: Prepare optional release signing credentials
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
         env:
-          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        if: env.KEYSTORE_B64 != ''
-        run: |
-          echo "${KEYSTORE_B64}" | base64 --decode > keystore.jks
-          cat > keystore.properties <<'EOF'
-          storeFile=keystore.jks
-          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
-          EOF
-
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: python scripts/prepare_signing.py
       - name: Resolve build version metadata
         id: version
-        run: |
-          python - <<'PY'
-          import os
-          import re
-          from pathlib import Path
-
-          props = {}
-          for line in Path("version.properties").read_text().splitlines():
-              line = line.strip()
-              if not line or line.startswith("#") or "=" not in line:
-                  continue
-              key, value = line.split("=", 1)
-              props[key.strip()] = value.strip()
-
-          base_name = props.get("VERSION_NAME", "1.0.0")
-          base_code = int(props.get("VERSION_CODE", "1"))
-          ref = os.environ.get("GITHUB_REF", "")
-          ref_name = os.environ.get("GITHUB_REF_NAME", "")
-          run_number = int(os.environ.get("GITHUB_RUN_NUMBER", "1"))
-          # Reserve 900000-999999 for non-tagged branch builds so tagged semantic
-          # release version codes stay below that range without collisions.
-          branch_build_base = 900_000
-          branch_build_max_run = 99_999
-
-          def sanitize(value: str) -> str:
-              sanitized = re.sub(r"[^0-9A-Za-z._-]+", "-", value).strip("-").lower()
-              return sanitized or "build"
-
-          if ref.startswith("refs/tags/"):
-              semver_string = ref_name[1:] if ref_name.startswith("v") else ref_name
-              match = re.match(r"^(\d+)\.(\d+)\.(\d+)$", semver_string)
-              if not match:
-                  raise SystemExit(
-                      f"Release tags must follow vMAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH, got: {ref_name}"
-                  )
-              major, minor, patch = map(int, match.groups())
-              # Encode MAJOR.MINOR.PATCH as major*100000 + minor*1000 + patch so
-              # tagged release version codes stay below branch_build_base.
-              version_code = major * 100_000 + minor * 1_000 + patch
-              if version_code >= 900_000:
-                  raise SystemExit(
-                      f"Release version code {version_code} exceeds the reserved tagged-build range."
-                  )
-              version_name = semver_string
-              docker_tag = sanitize(ref_name)
-          else:
-              branch = sanitize(ref_name)
-              version_name = f"{base_name}-{branch}.{run_number}"
-              if run_number > branch_build_max_run:
-                  raise SystemExit(
-                      f"Run number {run_number} exceeds the reserved branch-build version-code range."
-                  )
-              version_code = branch_build_base + run_number
-              docker_tag = sanitize(version_name)
-
-          artifact_name = f"release-apks-{sanitize(version_name)}"
-
-          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output_file:
-              output_file.write(f"release_version_name={version_name}\n")
-              output_file.write(f"release_version_code={version_code}\n")
-              output_file.write(f"release_artifact_name={artifact_name}\n")
-              output_file.write(f"docker_version_tag={docker_tag}\n")
-          PY
-
-      - name: Assemble release APKs (split per ABI)
+        run: python scripts/resolve_build_version.py
+      - name: Assemble release APKs
         env:
           RELEASE_VERSION_NAME: ${{ steps.version.outputs.release_version_name }}
           RELEASE_VERSION_CODE: ${{ steps.version.outputs.release_version_code }}
-        run: >
-          ./gradlew --no-daemon assembleRelease
-          -Pstocksense.versionName="${RELEASE_VERSION_NAME}"
-          -Pstocksense.versionCode="${RELEASE_VERSION_CODE}"
-
-      - name: Rename release APKs with version metadata
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease --no-daemon \
+            -Pstocksense.versionName="$RELEASE_VERSION_NAME" \
+            -Pstocksense.versionCode="$RELEASE_VERSION_CODE"
+      - name: Verify packaged runtime model
+        run: python scripts/verify_apk_runtime.py
+      - name: Rename APKs
         env:
           RELEASE_VERSION_NAME: ${{ steps.version.outputs.release_version_name }}
         run: |
-          shopt -s nullglob
-          # Gradle currently emits release APKs as app-<target>-release.apk and may
-          # append -unsigned depending on signing configuration; <target> is usually
-          # an ABI like arm64-v8a/x86_64 or the universal split.
-          for apk in app/build/outputs/apk/release/*.apk; do
-            filename="$(basename "$apk")"
-            if [[ "$filename" =~ ^app-(.+?)-release(-unsigned)?\.apk$ ]]; then
-              suffix="${BASH_REMATCH[1]}"
-            else
-              echo "Unexpected APK filename: $filename" >&2
-              exit 1
-            fi
-            mv "$apk" "app/build/outputs/apk/release/stocksense-${RELEASE_VERSION_NAME}-${suffix}.apk"
-          done
-
-      - name: List built APKs
-        run: find app/build/outputs/apk/release -name '*.apk' -exec ls -lh {} +
-
-      - name: Upload all release APKs
-        uses: actions/upload-artifact@v4
+          python - <<'PY'
+          import os, re
+          from pathlib import Path
+          for apk in Path('app/build/outputs/apk/release').glob('*.apk'):
+              match = re.fullmatch(r'app-(.+)-release(?:-unsigned)?\.apk', apk.name)
+              if not match:
+                  raise SystemExit('Unexpected APK filename')
+              apk.rename(apk.with_name(f"quantsense-{os.environ['RELEASE_VERSION_NAME']}-{match[1]}.apk"))
+          PY
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.version.outputs.release_artifact_name }}
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+          retention-days: 30
+      - name: Remove temporary signing material
+        if: always()
+        run: rm -f keystore.jks keystore.properties
 
   docker:
-    name: Build & Push Docker image
+    name: Publish APK and runtime download image
     runs-on: ubuntu-latest
-    needs: assemble
+    needs: [assemble, gateway-runtime]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download release APKs
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: ${{ needs.assemble.outputs.release_artifact_name }}
           path: app/build/outputs/apk/release
-
+      - uses: actions/download-artifact@v4
+        with:
+          name: quantsense-gateway-runtime-${{ github.sha }}
+          path: dist/gateway-runtime
       - name: Log in to GHCR
         env:
           CR_PAT: ${{ secrets.GITHUB_TOKEN }}
-        run: echo "${CR_PAT}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Set image id
-        run: echo "IMAGE_ID=$(echo "ghcr.io/${{ github.repository }}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
-
-      - name: Build Docker image
-        run: >
-          docker build
-          -t "${IMAGE_ID}:latest"
-          -t "${IMAGE_ID}:${GITHUB_SHA}"
-          -t "${IMAGE_ID}:${{ needs.assemble.outputs.docker_version_tag }}"
-          .
-
-      - name: Push Docker image
+        run: printf '%s' "$CR_PAT" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Build and push download image
+        env:
+          VERSION_TAG: ${{ needs.assemble.outputs.docker_version_tag }}
         run: |
-          docker push "${IMAGE_ID}:latest"
-          docker push "${IMAGE_ID}:${GITHUB_SHA}"
-          docker push "${IMAGE_ID}:${{ needs.assemble.outputs.docker_version_tag }}"
+          IMAGE_ID="$(printf 'ghcr.io/%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          docker build -t "$IMAGE_ID:latest" -t "$IMAGE_ID:$GITHUB_SHA" -t "$IMAGE_ID:$VERSION_TAG" .
+          python scripts/smoke_download_image.py --image "$IMAGE_ID:$GITHUB_SHA"
+          docker push "$IMAGE_ID:latest"
+          docker push "$IMAGE_ID:$GITHUB_SHA"
+          docker push "$IMAGE_ID:$VERSION_TAG"
 
   publish-release:
-    name: Publish Release
+    name: Publish release APKs and gateway runtime
     runs-on: ubuntu-latest
-    needs: assemble
+    needs: [assemble, gateway-runtime]
     if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download release APKs
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: ${{ needs.assemble.outputs.release_artifact_name }}
-          path: app/build/outputs/apk/release
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+          path: release
+      - uses: actions/download-artifact@v4
         with:
-          files: app/build/outputs/apk/release/*.apk
+          name: quantsense-gateway-runtime-${{ github.sha }}
+          path: runtime
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*.apk
+            runtime/*.tar.gz
+            runtime/*.sha256
           tag_name: ${{ github.ref_name }}
           name: Release v${{ needs.assemble.outputs.release_version_name }}
           fail_on_unmatched_files: true

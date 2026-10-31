@@ -17,9 +17,9 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelProvider
 import com.stocksense.app.ui.navigation.StockSenseNavGraph
 import com.stocksense.app.ui.screens.BootSplashScreen
-import com.stocksense.app.ui.screens.InitialSetupScreen
 import com.stocksense.app.ui.theme.StockSenseTheme
-import com.stocksense.app.viewmodel.*import kotlinx.coroutines.delay
+import com.stocksense.app.viewmodel.*
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
 
@@ -102,7 +102,7 @@ class MainActivity : ComponentActivity() {
         val llmSettingsViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
-                LlmSettingsViewModel(app.bitNetDownloader, app.modelManager.llmEngine) as T
+                LlmSettingsViewModel(app.modelManager.llmEngine) as T
         })[LlmSettingsViewModel::class.java]
 
         val credenceAIViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
@@ -111,24 +111,14 @@ class MainActivity : ComponentActivity() {
                 CredenceAIViewModel(app.credenceAIEngine, app.credenceAnalysisDao, app.modelManager.llmEngine) as T
         })[CredenceAIViewModel::class.java]
 
-        val initialSetupViewModel = ViewModelProvider(this, object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
-                InitialSetupViewModel(app.bitNetDownloader, app.userPreferencesManager, app) as T
-        })[InitialSetupViewModel::class.java]
-
         setContent {
             StockSenseTheme {
                 var showBootSplash by rememberSaveable { mutableStateOf(true) }
-                var showInitialSetup by rememberSaveable { mutableStateOf(false) }
-                var setupChecked by rememberSaveable { mutableStateOf(false) }
 
                 LaunchedEffect(Unit) {
                     delay(3000)
                     showBootSplash = false
-                    val isSetupDone = app.userPreferencesManager.isInitialSetupComplete()
-                    showInitialSetup = !isSetupDone
-                    setupChecked = true
+
                 }
 
                 Surface(
@@ -136,11 +126,7 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     when {
-                        showBootSplash || !setupChecked -> BootSplashScreen()
-                        showInitialSetup -> InitialSetupScreen(
-                            viewModel = initialSetupViewModel,
-                            onSetupComplete = { showInitialSetup = false }
-                        )
+                        showBootSplash -> BootSplashScreen()
                         else -> StockSenseNavGraph(
                             dashboardViewModel = dashboardViewModel,
                             predictionViewModel = predictionViewModel,

@@ -11,6 +11,11 @@ plugins {
 // The downloadBundledModel Gradle task has been intentionally removed.
 
 
+def nemotronConfig = new Properties()
+def nemotronConfigFile = rootProject.file("local.properties")
+if (nemotronConfigFile.exists()) nemotronConfigFile.withInputStream { nemotronConfig.load(it) }
+def buildString = { value -> groovy.json.JsonOutput.toJson(value.toString()) }
+
 def keystorePropertiesFile = rootProject.file("keystore.properties")
 def keystoreProperties = new Properties()
 def hasReleaseKeystore = keystorePropertiesFile.exists()
@@ -57,6 +62,10 @@ android {
 
     defaultConfig {
         applicationId "com.stocksense.app"
+        buildConfigField 'String', 'NEMOTRON_GATEWAY_URL', buildString(
+            project.findProperty('nemotron.gatewayUrl') ?: System.getenv('NEMOTRON_GATEWAY_URL') ?: nemotronConfig.getProperty('nemotron.gatewayUrl', ''))
+        // Release APKs keep gateway credentials device-local.
+        buildConfigField 'String', 'NEMOTRON_GATEWAY_TOKEN', '""'
         // Android 13 (API 33) is the minimum supported version.
         minSdk 33
         targetSdk 36
@@ -113,6 +122,8 @@ android {
             signingConfig hasReleaseKeystore ? signingConfigs.release : signingConfigs.debug
         }
         debug {
+            buildConfigField 'String', 'NEMOTRON_GATEWAY_TOKEN', buildString(
+                project.findProperty('nemotron.gatewayToken') ?: nemotronConfig.getProperty('nemotron.gatewayToken', ''))
             minifyEnabled false
         }
     }

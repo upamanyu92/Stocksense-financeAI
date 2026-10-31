@@ -161,30 +161,30 @@ private fun AgentStatusStrip(
             "Agent live",
             NeonGreen,
             buildString {
-                append(modelName.ifBlank { "Local model loaded" })
+                append(modelName.ifBlank { "Nemotron API" })
                 if (lastInferenceTimeMs > 0) append(" • ${lastInferenceTimeMs} ms")
             }
         )
-        LlmStatus.LOADING -> Triple("Loading agent", LuxeGold, "Preparing the local model")
+        LlmStatus.LOADING -> Triple("Loading agent", LuxeGold, "Contacting AI service")
         LlmStatus.MODEL_NOT_DOWNLOADED -> Triple(
             "Template mode",
             ElectricBlue,
-            "Using built-in responses until a GGUF model is downloaded"
+            "AI service has not responded yet"
         )
         LlmStatus.NATIVE_UNAVAILABLE -> Triple(
             "Template mode",
             ElectricBlue,
-            "Using built-in responses because this build has no native llama runtime"
+            "AI service unavailable"
         )
         LlmStatus.LOAD_FAILED -> Triple(
             "Load failed",
             SoftRed,
-            "Using built-in responses because the selected model could not load"
+            "AI request failed; general guidance only"
         )
         LlmStatus.TEMPLATE_FALLBACK -> Triple(
             "Template mode",
             ElectricBlue,
-            "Using built-in responses while the local agent is inactive"
+            "General guidance only; AI service has not responded"
         )
     }
 

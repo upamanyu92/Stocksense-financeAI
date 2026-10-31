@@ -2,12 +2,18 @@
 
 > **Quantified Intelligence · Precision Wealth**
 
-AI-powered stock prediction and portfolio analysis platform for Android. Uses Microsoft BitNet 1-bit LLM for on-device financial insight generation, TensorFlow Lite for ML-based stock trend prediction, and a multi-agent agentic prediction pipeline.
+AI-powered stock prediction and portfolio analysis platform for Android.
+Language analysis uses NVIDIA Nemotron 3 Super through a backend gateway, with
+Hugging Face hosted Nemotron fallback when NVIDIA quota is exhausted or unavailable.
+TensorFlow Lite stock prediction remains on-device.
+
+See [gateway setup and migration plan](gateway/README.md) for credentials,
+quota/reset behavior, Android configuration, tests, and deployment requirements.
 
 ## Features
 
 - 📊 **Premium Dashboard** – Real-time portfolio overview, sentiment gauges, agent debate threads
-- 🤖 **On-Device LLM** – SmolLM2-135M bundled with APK (zero network required on first launch), BitNet models downloadable for deeper analysis
+- 🤖 **Nemotron APIs** – NVIDIA primary, Hugging Face hosted fallback; provider credentials stay on the backend
 - 📈 **ML Predictions** – TensorFlow Lite stock trend prediction with adaptive confidence weighting
 - 🧠 **Agentic Prediction Pipeline** – 5-agent orchestrated pipeline with trust scoring
 - 💼 **Portfolio Management** – Holdings (manual trades), **Import XLSX** (broker statements), **AI Analysis** (agent evaluation of holdings vs market sentiment)
@@ -23,9 +29,9 @@ AI-powered stock prediction and portfolio analysis platform for Android. Uses Mi
 | Component | Technology |
 |-----------|-----------|
 | UI | Jetpack Compose + Material 3 |
-| LLM | SmolLM2-135M (bundled) / BitNet via llama.cpp JNI |
+| LLM | HTTPS gateway → NVIDIA Nemotron / Hugging Face |
 | ML | TensorFlow Lite (on-device) |
-| Database | Room (SQLite) – 12 entities |
+| Database | Room (SQLite) – 13 entities |
 | Background | WorkManager |
 | DI | Manual (no Hilt) |
 | Prediction | 5-Agent Agentic Pipeline |
@@ -34,11 +40,6 @@ AI-powered stock prediction and portfolio analysis platform for Android. Uses Mi
 ## Build
 
 ```bash
-# Bundle SmolLM2 model (run once before first build)
-./gradlew downloadBundledModel
-# OR
-./scripts/download_smollm2.sh
-
 # Debug build
 ./gradlew assembleDebug
 
@@ -48,8 +49,8 @@ AI-powered stock prediction and portfolio analysis platform for Android. Uses Mi
 # Unit tests
 ./gradlew test
 
-# Enable native llama.cpp build (requires NDK)
-./gradlew assembleRelease -Pstocksense.enableNativeLlm=true
+# Gateway routing tests (no provider calls)
+(cd gateway && python -m unittest -v)
 ```
 
 ## Portfolio XLSX Import
@@ -65,7 +66,7 @@ Parsed by `XlsxReader` (zero-dependency ZIP+XML parser) + `PortfolioXlsxParser`.
 
 ## CI/CD
 
-GitHub Actions (`.github/workflows/android.yml`) — debug build on every push, release APK on `main`.
+GitHub Actions builds and tests APKs and publishes a clean gateway runtime bundle. See [Actions secrets, artifacts, and release setup](docs/github-actions.md).
 
 ## Requirements
 
