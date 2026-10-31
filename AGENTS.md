@@ -7,7 +7,9 @@
 - Private local debug: `python gateway/local.py`, then `adb reverse tcp:8080 tcp:8080` and `./gradlew installDebug` on the same computer. Debug-only network policy permits loopback/emulator HTTP; release stays HTTPS-only.
 - Android connection: `nemotron.gatewayUrl` / private-test `nemotron.gatewayToken` in ignored local.properties. Public release needs server-validated user auth.
 - First-run model download is skipped; existing BitNet download work is cancelled. Legacy downloader/setup classes are retained but not used in the active UI flow. Native LLM build defaults off.
-- LLM settings now shows API status and a connection check. Old status enum/quality-mode names remain for call-site compatibility.
+- CI uses `android-deploy.yml` + reusable `android.yml`. Provider credentials are step-scoped GitHub secrets in trusted main/tag jobs; artifacts are built from allowlisted runtime code/config. See `docs/github-actions.md`.
+- Release APKs contain no shared token. Runtime `GatewaySettings` encrypts on-device connection credentials with Android Keystore in `noBackupFilesDir`; private debug source builds retain local token defaults.
+- LLM settings now shows API status, editable connection settings, and a connection check. Old status enum/quality-mode names remain for call-site compatibility.
 - Tests: `(cd gateway && python -m unittest -v)` and `./gradlew :app:testDebugUnitTest`.
 
 

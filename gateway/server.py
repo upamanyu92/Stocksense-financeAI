@@ -54,8 +54,8 @@ class Router:
     def __init__(self, env, transport=post_json, now=time.time):
         self.nvidia_key = env.get('NVIDIA_API_KEY', '')
         self.hf_key = env.get('HF_TOKEN', '')
-        self.nvidia_model = env.get('NVIDIA_MODEL', 'nvidia/nemotron-3-super-120b-a12b')
-        self.hf_model = env.get('HF_MODEL', 'nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B:fastest')
+        self.nvidia_model = (env.get('NVIDIA_MODEL') or 'nvidia/nemotron-3-super-120b-a12b')
+        self.hf_model = (env.get('HF_MODEL') or 'nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B:fastest')
         self.transport, self.now = transport, now
         self.lock = threading.Lock()
         self.db = sqlite3.connect(env.get('QUOTA_STATE_PATH', 'quota.sqlite3'), check_same_thread=False)
@@ -207,6 +207,13 @@ def load_environment():
             if line.strip() and not line.lstrip().startswith('#'):
                 key, value = line.split('=', 1)
                 os.environ.setdefault(key.strip(), value.strip())
+
+    config_file = Path(__file__).with_name('runtime-config.json')
+    if config_file.exists():
+        config = json.loads(config_file.read_text())
+        for variable, field in (('NVIDIA_MODEL', 'nvidia_model'), ('HF_MODEL', 'hf_model')):
+            if config.get(field):
+                os.environ.setdefault(variable, config[field])
 
 
 def main():

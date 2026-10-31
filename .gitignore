@@ -26,3 +26,6 @@ __pycache__/
 
 .kotlin/
 /gateway/emulator.log
+
+/dist/
+/gateway/runtime-config.json

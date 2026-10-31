@@ -21,6 +21,9 @@ data class ModelOption(
 )
 
 data class LlmSettingsUiState(
+    val gatewayUrl: String = "",
+    val hasGatewayToken: Boolean = false,
+    val connectionError: String? = null,
     val status: LlmStatus = LlmStatus.TEMPLATE_FALLBACK,
     val currentModelName: String = "",
     val isConfigured: Boolean = false,
@@ -33,9 +36,21 @@ class LlmSettingsViewModel(private val llmEngine: LLMInsightEngine) : ViewModel(
     val uiState: StateFlow<LlmSettingsUiState> = _uiState.asStateFlow()
     init { refreshStatus() }
     fun refreshStatus() {
-        _uiState.update { it.copy(status = llmEngine.status,
+        _uiState.update { it.copy(gatewayUrl = llmEngine.gatewayUrl(), hasGatewayToken = llmEngine.hasGatewayToken(),
+            status = llmEngine.status,
             currentModelName = llmEngine.getMetrics().displayModelName,
             isConfigured = llmEngine.isConfigured) }
+    }
+    fun saveConnection(url: String, token: String) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                llmEngine.configureGateway(url, token)
+                _uiState.update { it.copy(connectionError = null, liveCheckMessage = "Connection saved on this device.") }
+                refreshStatus()
+            } catch (_: Exception) {
+                _uiState.update { it.copy(connectionError = "Use a valid gateway URL and an access token of at least 32 characters.") }
+            }
+        }
     }
     fun runLiveCheck() {
         if (_uiState.value.isRunningLiveCheck) return

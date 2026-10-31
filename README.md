@@ -66,7 +66,7 @@ Parsed by `XlsxReader` (zero-dependency ZIP+XML parser) + `PortfolioXlsxParser`.
 
 ## CI/CD
 
-GitHub Actions (`.github/workflows/android.yml`) — debug build on every push, release APK on `main`.
+GitHub Actions builds and tests APKs and publishes a clean gateway runtime bundle. See [Actions secrets, artifacts, and release setup](docs/github-actions.md).
 
 ## Requirements
 

@@ -40,6 +40,12 @@ class RoutingTests(unittest.TestCase):
     def complete(self, router=None):
         return (router or self.router).complete([{'role': 'user', 'content': 'Analyse holdings'}], 800)
 
+    def test_empty_actions_variables_use_default_models(self):
+        router = Router({**self.env, 'NVIDIA_MODEL': '', 'HF_MODEL': ''}, self.transport, lambda: self.time)
+        self.addCleanup(router.db.close)
+        self.assertEqual(router.nvidia_model, 'nvidia/nemotron-3-super-120b-a12b')
+        self.assertEqual(router.hf_model, 'nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B:fastest')
+
     def test_primary_success_does_not_call_hf(self):
         self.responses = [success()]
         self.assertEqual(self.complete()['provider'], 'nvidia')

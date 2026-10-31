@@ -123,7 +123,13 @@ The included stdlib HTTP service is a development implementation, not an exposed
 public production server. Run one gateway process; multiple replicas require
 shared atomic quota coordination instead of the process-local lock.
 
-A build without a gateway URL shows “not configured” and labelled template guidance.
+A build without a gateway URL initially shows “not configured” and labelled template guidance; connection settings can be supplied on-device.
+Downloaded APKs support **AI service → Gateway URL / Gateway access token → Save connection**.
+The token is encrypted with Android Keystore and stored outside Android backup.
+Release APKs and CI debug APKs contain no shared access token. Private local debug
+source builds still support `nemotron.gatewayToken` for convenience.
+See [GitHub Actions setup](../docs/github-actions.md) for repository secrets and runtime artifacts.
+
 AI settings includes a live connection check. This consumes a small inference request.
 Financial prompts are transmitted to the active provider; the gateway suppresses
 request and provider error logging and does not store prompts or responses.

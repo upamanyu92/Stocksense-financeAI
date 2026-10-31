@@ -96,7 +96,14 @@ enum class QualityMode {
 }
 
 /** NVIDIA/Hugging Face inference through our credential-holding gateway. */
-class LLMInsightEngine(@Suppress("UNUSED_PARAMETER") context: Context) {
+class LLMInsightEngine(context: Context) {
+    private val settings = GatewaySettings(context)
+    fun gatewayUrl(): String = settings.read().url
+    fun hasGatewayToken(): Boolean = settings.read().token.isNotBlank()
+    fun configureGateway(url: String, token: String) {
+        settings.save(url.trim(), token.ifBlank { settings.read().token })
+        _statusFlow.value = LlmStatus.TEMPLATE_FALLBACK
+    }
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS).readTimeout(100, TimeUnit.SECONDS)
         .callTimeout(110, TimeUnit.SECONDS).build()
@@ -105,7 +112,7 @@ class LLMInsightEngine(@Suppress("UNUSED_PARAMETER") context: Context) {
     private var modelName = "Nemotron 3 Super (NVIDIA)"
     private var lastMs = 0L
     private var count = 0
-    val isConfigured: Boolean get() = BuildConfig.NEMOTRON_GATEWAY_URL.isNotBlank()
+    val isConfigured: Boolean get() = settings.read().let { it.url.isNotBlank() && it.token.isNotBlank() }
     private val _statusFlow = MutableStateFlow(LlmStatus.TEMPLATE_FALLBACK)
     val statusFlow: StateFlow<LlmStatus> = _statusFlow.asStateFlow()
     val status: LlmStatus get() = _statusFlow.value
@@ -128,7 +135,8 @@ class LLMInsightEngine(@Suppress("UNUSED_PARAMETER") context: Context) {
                 val start = System.currentTimeMillis()
                 try {
                     check(isConfigured) { "AI service is not configured" }
-                    val url = BuildConfig.NEMOTRON_GATEWAY_URL.trimEnd('/') + "/v1/chat/completions"
+                    val connection = settings.read()
+                    val url = connection.url.trimEnd('/') + "/v1/chat/completions"
                     require(GatewayEndpoint.isAllowed(url, BuildConfig.DEBUG)) { "Invalid AI service endpoint" }
                     _statusFlow.value = LlmStatus.LOADING
                     val payload = buildJsonObject {
@@ -141,7 +149,7 @@ class LLMInsightEngine(@Suppress("UNUSED_PARAMETER") context: Context) {
                         put("max_tokens", maxTokens.coerceIn(1, 2048))
                     }
                     val request = Request.Builder().url(url)
-                        .header("Authorization", "Bearer " + BuildConfig.NEMOTRON_GATEWAY_TOKEN)
+                        .header("Authorization", "Bearer " + connection.token)
                         .post(payload.toString().toRequestBody("application/json".toMediaType())).build()
                     client.newCall(request).execute().use { response ->
                         check(response.isSuccessful) { "AI service unavailable" }
