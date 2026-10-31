@@ -131,11 +131,8 @@ class StockSenseApp : Application() {
         LearningWorker.schedule(this)
 
 
-        // Auto-download Microsoft BitNet 1-bit LLM model on first launch.
-        // Uses WorkManager so download runs only when network is available
-        // and survives process death.
-        ModelDownloadWorker.schedule(this)
+        // Retire downloads scheduled by older versions; inference now runs through the gateway.
+        androidx.work.WorkManager.getInstance(this).cancelUniqueWork("bitnet_model_download")
 
-        Log.i(TAG, "Background workers scheduled (including BitNet model download)")
     }
 }

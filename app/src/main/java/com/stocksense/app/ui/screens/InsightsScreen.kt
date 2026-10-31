@@ -187,10 +187,10 @@ fun InsightsScreen(
 private fun LlmStatusBanner(status: LlmStatus) {
     val (text, color) = when (status) {
         LlmStatus.READY -> "✅ LLM Agent Ready" to Color(0xFF4CAF50)
-        LlmStatus.LOADING -> "⏳ LLM Agent Loading…" to Color(0xFFFFC107)
-        LlmStatus.NATIVE_UNAVAILABLE -> "⚠️ Native LLM unavailable – using template mode" to Color(0xFFFF9800)
-        LlmStatus.MODEL_NOT_DOWNLOADED -> "📥 Model not downloaded – using template mode" to Color(0xFFFF9800)
-        LlmStatus.LOAD_FAILED -> "❌ LLM failed to load – using template mode" to Color(0xFFF44336)
+        LlmStatus.LOADING -> "⏳ Contacting AI service…" to Color(0xFFFFC107)
+        LlmStatus.NATIVE_UNAVAILABLE -> "⚠️ AI service unavailable – using template guidance" to Color(0xFFFF9800)
+        LlmStatus.MODEL_NOT_DOWNLOADED -> "📥 AI service not configured – using template guidance" to Color(0xFFFF9800)
+        LlmStatus.LOAD_FAILED -> "❌ AI request failed – using template guidance" to Color(0xFFF44336)
         LlmStatus.TEMPLATE_FALLBACK -> "ℹ️ Using template fallback (no LLM)" to Color(0xFF2196F3)
     }
     Surface(
@@ -215,8 +215,8 @@ private fun AgenticMetricsCard(metrics: AgenticMetrics) {
             Text("Agentic Evaluation Metrics", style = MaterialTheme.typography.titleSmall)
             Spacer(modifier = Modifier.height(4.dp))
             MetricRow("Quality Mode", metrics.qualityMode.name)
-            MetricRow("Native Available", if (metrics.isNativeAvailable) "Yes" else "No")
-            MetricRow("Model Downloaded", if (metrics.isModelDownloaded) "Yes" else "No")
+            MetricRow("Inference", "NVIDIA / Hugging Face")
+            MetricRow("Connection", "Internet required")
             MetricRow("Model", metrics.displayModelName.ifBlank { "—" })
             MetricRow("Last Inference", if (metrics.lastInferenceTimeMs > 0) "${metrics.lastInferenceTimeMs}ms" else "N/A")
             MetricRow("Cache Hits", "${metrics.cacheHits}")

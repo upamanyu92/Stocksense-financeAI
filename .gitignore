@@ -14,3 +14,15 @@ app/release/
 *.aab
 keystore.properties
 *.jks
+
+# Inference gateway secrets and persisted quota state
+.env
+.env.*
+!.env.example
+*.sqlite3
+*.sqlite3-*
+__pycache__/
+*.gguf
+
+.kotlin/
+/gateway/emulator.log
